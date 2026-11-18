@@ -1,4 +1,4 @@
-Original Harbor CLI output; local workspace paths replaced with $WORKSPACE.
+Original Harbor CLI output; workspace paths redacted and trailing whitespace normalized.
 
   72/72 Mean: 1.000 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1:00:02 0:00:00
 gamelogicbench • oracle
@@ -16,11 +16,10 @@ gamelogicbench • oracle
 
 Job Info
 Total runtime: 1h 0m 9s
-Results written to 
+Results written to
 $WORKSPACE/evidence/harbor/oracle-full/result.js
 on
-Inspect results by running `harbor view 
+Inspect results by running `harbor view
 $WORKSPACE/evidence/harbor`
-Share results by running `harbor upload 
+Share results by running `harbor upload
 $WORKSPACE/evidence/harbor/oracle-full`
-

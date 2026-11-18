@@ -54,6 +54,6 @@ The upstream adapter validator reports 30 checks passed, no errors and four warn
 
 - [Oracle summary](oracle-summary.json) and [per-task results](oracle-per-task.csv).
 - [Representative differential summary](differential-summary.json): 114/114 matches.
-- [Original CLI transcript](oracle-cli-transcript.txt), with local workspace paths redacted.
+- [Original CLI transcript](oracle-cli-transcript.txt), with local workspace paths redacted and trailing whitespace normalized.
 - [Rendered CLI log](oracle-log-render.png). This is explicitly a rendering of the genuine CLI text, **not a terminal screen capture**. The computer-use tool denied access to Terminal; a literal terminal screenshot remains to be attached before public WIP submission.
 - [Versions and image IDs](versions.json), [task inclusion list](task-inclusion.csv), [prompt checks](prompt-fidelity.json), and [live network-policy configuration inspection](network-isolation-check.json).
