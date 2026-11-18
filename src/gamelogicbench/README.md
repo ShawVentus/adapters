@@ -34,7 +34,7 @@ GameLogicBench evaluates gameplay logic in Godot 4.4 projects. An agent edits th
 
 ## Run Evaluation / Harness
 
-The registry entry is pending. Run generated tasks locally with the same Docker daemon that built the base image.
+The registry entry is pending. The final local Oracle passed all 72 tasks and 1,474 cells with zero exceptions or retries; representative original/Harbor calibration matched 114/114 cell verdicts. See [validation evidence and reproduction](validation/README.md). Run generated tasks locally with the same Docker daemon that built the base image.
 
 ```bash
 harbor trial start -p ../../datasets/gamelogicbench-poc/atom_light_occlusion -a oracle
@@ -133,4 +133,4 @@ Set `GLB_HARNESS` and `GLB_TASKS` to the respective absolute paths. The runtime 
 
 ## Authors & Contributions
 
-The benchmark is by Xinyu Che and colleagues at NJU-LINK. The local Harbor adapter was prepared with Codex. Public contributor credit is pending review.
+The benchmark is by Xinyu Che and colleagues at NJU-LINK. The Harbor adapter was prepared by ShawVentus with Codex.
