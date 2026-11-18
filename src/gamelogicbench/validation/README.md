@@ -55,5 +55,9 @@ The upstream adapter validator reports 30 checks passed, no errors and four warn
 - [Oracle summary](oracle-summary.json) and [per-task results](oracle-per-task.csv).
 - [Representative differential summary](differential-summary.json): 114/114 matches.
 - [Original CLI transcript](oracle-cli-transcript.txt), with local workspace paths redacted and trailing whitespace normalized.
-- [Rendered CLI log](oracle-log-render.png). This is explicitly a rendering of the genuine CLI text, **not a terminal screen capture**. The computer-use tool denied access to Terminal; a literal terminal screenshot remains to be attached before public WIP submission.
+- [User-provided terminal capture](oracle-terminal-capture.png): the terminal displays the saved original `oracle-full` output, 72/72 tasks at reward 1.0, zero exceptions. The login banner and local command paths above the output were cropped; result text is unchanged. See [screenshot provenance](screenshot-provenance.json).
+- [Rendered CLI log](oracle-log-render.png) remains an explicitly labelled text rendering, separate from the terminal capture.
+- [Run/submission comparison](version-comparison.json): implementation `8243e330` and prior handoff `f3f08e36` have identical Git blobs and modes for all 19 functional files. Later screenshot/evidence updates leave that implementation unchanged.
 - [Versions and image IDs](versions.json), [task inclusion list](task-inclusion.csv), [prompt checks](prompt-fidelity.json), and [live network-policy configuration inspection](network-isolation-check.json).
+
+> Terminal capture showing the saved Harbor Oracle output for `oracle-full`: 72/72 tasks at reward 1.0, zero exceptions.
