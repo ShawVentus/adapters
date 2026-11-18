@@ -1,0 +1,23 @@
+[
+  {
+    "adapter_name": "gamelogicbench",
+    "agent": null,
+    "model": null,
+    "date": null,
+    "adapted_benchmark_size": 72,
+    "number_of_runs": 3,
+    "notes": "Proposed plan only. Agent, model, stratified sample (proposed 7 Atom, 9 Combo, 8 Repo) and run count require maintainer agreement. No runs, performance or costs are recorded.",
+    "original_parity_repo": "https://github.com/NJU-LINK/GameLogicBench",
+    "adapter_pr": null,
+    "dataset_pr": null,
+    "parity_pr": null,
+    "metrics": [
+      {
+        "benchmark_name": "GameLogicBench",
+        "metric": "task_pass_rate",
+        "original": null,
+        "harbor": null
+      }
+    ]
+  }
+]
