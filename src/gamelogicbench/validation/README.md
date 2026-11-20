@@ -48,7 +48,7 @@ The generated task set contains 72 tasks, 410 scenarios and 1,474 scenario-seed 
 
 Raw Harbor runs and original-harness per-cell logs remain private because they contain hidden inputs and reference-solution artifacts. Only reviewed task-level and aggregate results belong in this directory.
 
-The upstream adapter validator reports 30 checks passed, no errors and four warnings for pending adapter/dataset/parity PR links and unknown future model-parity cost. Model parity and public dataset registration have not been performed. No model API was used for this validation.
+At the Oracle-only validation recorded here, the upstream adapter validator reported 30 checks passed, no errors and four warnings for pending publication links and unknown future model-parity cost. No model API was used for that validation. The subsequent 2026-11-20 model parity completed all 144 scored task runs; see [results](parity-results.json) and [reproduction, driver fix and excluded-attempt policy](parity-reproduction.md). The current validator reports 30 checks passed, no errors and two warnings for the pending dataset and Hugging Face evidence PR links. Public dataset registration and Hugging Face evidence publication remain pending.
 
 ## Final Oracle evidence
 
