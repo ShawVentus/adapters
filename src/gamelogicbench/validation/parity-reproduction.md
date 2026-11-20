@@ -7,15 +7,34 @@ Status: the independent four-task pilot is complete; the three formal 24-task ru
 - Harness: `NJU-LINK/GameLogicBench@10287322040bc72574f144cb40eccfd6ccb66936`.
 - Tasks: `NJU-LINK/GameLogicBench-Tasks@82f51ab34860c0ab3fe63a0ce9ae394ad38234a6`.
 - Adapter implementation: `600d5e0f8b6861bc5e92cff2429602205ac7c503`; subsequent reproduction documents do not change task generation or grading.
-- Harbor `0.23.0`, Codex `0.144.1`, Godot `4.4.stable.official.4c311cbee`, Linux ARM64 on both sides.
+- Harbor `0.23.0`, Codex `0.144.1`, Godot `4.4.stable.official.4c311cbee`, Linux ARM64 on both sides. The repaired Harbor attempt and round 3 use the documented stdin-prompt driver patch below; earlier valid attempts retain the unpatched driver.
 - API: `https://app.ppapi.ai/v1`, Responses protocol, actual model ID `gpt-5-mini` (Harbor's agent argument is `openai/gpt-5-mini`). The earlier proposed date-suffixed ID is not used.
-- High reasoning effort, 400,000-token context window, original per-task CPU/memory settings and 3,600-second solve budget on both sides. Request retries: 4; stream retries: 8; stream idle timeout: 120,000 ms. No framework-level whole-trial retries.
+- High reasoning effort, 400,000-token context window, original per-task CPU/memory settings and 3,600-second solve budget on both sides. Request retries: 4; stream retries: 8; stream idle timeout: 120,000 ms. Automatic framework-level whole-trial retries are disabled; documented infrastructure-invalid attempts are archived and replaced separately, including their usage in cost estimates.
 - [24 fixed task IDs](../parity_task_ids.txt): within each kind, take the first eight tasks in ascending SHA-256 order of `gamelogicbench-parity-v1:<task_id>`. Selection precedes model evaluation and is independent of scores. All 472 upstream scenario/seed cells per run are frozen privately and matched between sides.
-- Local Colima Linux backend, 6 vCPU / 16 GiB RAM; two model solves per side per round and two original judge workers per round. Daytona was not used. At `2026-11-20T09:52:10Z`, round 2 was started alongside round 1 after observing low CPU/memory use and API wait. At most two paired rounds overlap, for a total ceiling of eight model solves. Round 3 starts when either paired round completes. No active solve was interrupted, and the total remains 144 formal solves with unchanged inputs, model settings, budgets and scoring.
+- Local Colima Linux backend, 6 vCPU / 16 GiB RAM; two model solves per side per round and two original judge workers per round. Daytona was not used. At `2026-11-20T09:52:10Z`, round 2 was started alongside round 1 after observing low CPU/memory use and API wait. At most two paired rounds overlap, for a total ceiling of eight model solves. Round 3 starts when either paired round completes. No active solve was interrupted, and the target remains 144 scored task runs with unchanged inputs, model settings, budgets and scoring; excluded infrastructure attempts are additional.
 
 Use the pinned checkouts and base-image build from the adapter README, then build the [fixed Codex runtime](parity-runtime/README.md). On macOS, run the original harness on the Linux Docker host: its egress policy requires Linux `iptables`, root access and the host Docker daemon. Harbor can be scheduled from macOS against that same daemon. Set `DOCKER_HOST` explicitly when using a non-default Docker backend.
 
 For the recorded overlap schedule, launch rounds 1 and 2 in separate terminals on both sides, then start round 3 after either paired round finishes. Each round has separate output directories. The loops below instead show sequential invocation for a smaller resource footprint; each round's settings are identical.
+
+Rounds 1 and 2 exposed three invalid attempts: original `combo_formation_commit` (round 1) and `combo_push_commit` (round 2) exhausted response-stream reconnections; Harbor `atom_target_selection` (round 1) exited 143 when the agent's Godot `pkill -f` cleanup also matched the prompt in its launcher argv. The upstream Codex scaffold explicitly avoids this by feeding the prompt through a file/stdin. Harbor's [minimal driver patch](harbor-codex-stdin.patch) applies the same delivery method without changing prompt bytes, model settings or grading. Original invalid attempts and their usage are retained privately; valid losses and model-budget timeouts are not rerun. Third-round execution and these repairs overlap while remaining below eight model solves.
+
+Before Harbor model runs, apply the patch to a Harbor 0.23.0 environment and check its real command builder without calling the API. Use that environment's Python interpreter, from the adapter directory:
+
+```bash
+python - <<'PY'
+from pathlib import Path
+import harbor
+import subprocess
+
+site_packages = Path(harbor.__file__).resolve().parent.parent
+patch = Path("validation/harbor-codex-stdin.patch").resolve()
+subprocess.run(["patch", "-p1", "-d", str(site_packages), "-i", str(patch)], check=True)
+PY
+python validation/check_codex_stdin.py
+```
+
+The [patch provenance](harbor-codex-stdin-provenance.json) records the unmodified and patched driver hashes. The adapter generator, runtime image, Codex executable, frozen inputs and verifier are unchanged. Oracle does not use this driver and does not need to be rerun.
 
 ## Harbor side
 
