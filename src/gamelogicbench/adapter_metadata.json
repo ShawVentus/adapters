@@ -1,13 +1,19 @@
 [
   {
     "adapter_name": "gamelogicbench",
-    "adapter_builders": ["ShawVentus (937585404@qq.com)"],
+    "adapter_builders": [
+      "ShawVentus (937585404@qq.com)"
+    ],
     "original_benchmark": [
       {
         "split": "full",
         "size": 72,
         "harness": "agent",
-        "supported_agents": ["claude-code", "codex", "opencode"],
+        "supported_agents": [
+          "claude-code",
+          "codex",
+          "opencode"
+        ],
         "adaptable": true,
         "notes": "Pinned public source snapshot contains 72 tasks, 410 scenarios and 1474 cells."
       }
@@ -19,11 +25,15 @@
         "parity_benchmark_size": 24,
         "parity_sampling_rate": 0.3333333333333333,
         "registry_benchmark_size": 0,
-        "added_agents": ["None"],
-        "parity_matching_agents": [],
+        "added_agents": [
+          "None"
+        ],
+        "parity_matching_agents": [
+          "codex@0.144.1+gpt-5-mini"
+        ],
         "parity_unmatching_agents": [],
-        "parity_costs": null,
-        "notes": "WIP. Three formal paired Codex 0.144.1 / gpt-5-mini runs are in progress on 24 frozen tasks; no matching conclusion recorded yet. Local Colima backend, no Daytona. Registry registration remains pending."
+        "parity_costs": "$7.174998300",
+        "notes": "Overall three-run score ranges overlap. Pilot excluded; model solve timeouts are judged without model reruns. Recovered transport errors occurred. 4 unusable attempts were archived and replaced under the original session-completion policy; their usage remains included in cost estimates. The repaired Harbor task and round 3 use the documented stdin-prompt driver patch; earlier valid attempts are retained. A separate sensitivity check counts the oversized-tool-argument attempt as its original zero: Harbor overall 18.0556 \u00b1 3.6747%; overall ranges overlap. Cost is a LiteLLM-price estimate for recorded formal and pilot usage, not the 2077 invoice; interrupted unreported requests may be missing. Registry and HF evidence publication remain pending."
       }
     ]
   }

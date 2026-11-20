@@ -60,13 +60,13 @@ Use `--limit N` to select a sorted prefix and `--overwrite` to regenerate tasks 
 
 ## Comparison with Original Benchmark (Parity)
 
-Three formal paired runs are in progress on a frozen 24-task subset (8 atom / 8 combo / 8 repo, 472 scenario-seed cells per run). Both sides use Codex 0.144.1, the verified 2077 model ID `gpt-5-mini`, high reasoning effort and the original task budgets. The independent four-task pilot scored 25% on each side with zero final runtime exceptions; cross-grading three model submissions matched 66/66 cell verdicts. Pilot results are excluded from formal scores.
+Three paired runs are complete on the frozen 24-task subset (8 atom / 8 combo / 8 repo, 472 cells per run). Results are mean ± sample SEM across the three whole-task pass rates. Overall three-run score ranges overlap. Pilot excluded; model solve timeouts are judged without model reruns. Recovered transport errors occurred. 4 unusable attempts were archived and replaced under the original session-completion policy; their usage remains included in cost estimates. The repaired Harbor task and round 3 use the documented stdin-prompt driver patch; earlier valid attempts are retained. A separate sensitivity check counts the oversized-tool-argument attempt as its original zero: Harbor overall 18.0556 ± 3.6747%; overall ranges overlap.
 
 | Agent | Model | Metric | Number of Runs | Dataset Size | Original Performance | Harbor Performance |
 | --- | --- | --- | ---: | ---: | --- | --- |
-| codex@0.144.1 | gpt-5-mini | Task pass rate | 3 per side | 24/72 (33.3%) | In progress | In progress |
+| codex@0.144.1 | gpt-5-mini | Task pass rate (%) | 3 per side | 24/72 (33.3%) | 13.8889 ± 2.7778 | 18.0556 ± 3.6747 |
 
-See [the fixed task list](parity_task_ids.txt), [both-side reproduction commands and methodology](validation/parity-reproduction.md), [Harbor job config](run_gamelogicbench_parity.yaml), and [pinned Codex runtime recipe](validation/parity-runtime/README.md). The original harness runs on the Linux Docker host because its egress allowlist requires `iptables`; Harbor uses the same backend. The recorded experiment uses local Colima and does not require Daytona. Formal results will include per-run scores and mean ± sample SEM overall and per kind; no formal parity conclusion is claimed yet.
+See [per-run and per-task summaries](validation/parity-results.json), [the fixed task list](parity_task_ids.txt), and [both-side reproduction and methodology](validation/parity-reproduction.md). Local Colima Linux was used; Daytona was not used.
 
 After the linked runtime, private credentials and task-generation setup, run each side three times with distinct result directories. From the adapter directory on the Harbor host and the harness root on the Linux Docker host respectively:
 
@@ -83,7 +83,7 @@ python -m geb.cli command=run "task=[$(paste -sd, "$GLB_PARITY_TASK_IDS")]" \
 
 - The upstream harness starts a container per seed. The adapter starts one separate verifier container per trial and isolates sequential seed executions inside it. Check the target backend's isolation and egress policy before using the adapter with models.
 - `repo_amsg_movement_engine` failed its reference checks in the original harness on ARM64 but passed on AMD64. Its vendored GDExtension has Linux x86_64 binaries only; the generated task pins both execution roles to AMD64. Use that same architecture for upstream comparisons.
-- The Docker verifier supervises each process and writes the task reward. Agent code never gets write access to the final reward file. Missing or unusable judge results leave an explicit infrastructure failure for rerun. Model parity and public registry submission remain pending.
+- The Docker verifier supervises each process and writes the task reward. Agent code never gets write access to the final reward file. Missing or unusable judge results leave an explicit infrastructure failure for rerun. Public registry submission remains pending.
 - Verifier logs include Godot diagnostics and a private `cells.jsonl` with every scenario/seed verdict. Keep these detailed logs private; publish only reviewed summaries and terminal screenshots.
 - Source checkouts must match the fixed SHAs below and have clean tracked files. Generation copies Git-tracked assets only.
 - Publication requires upstream permission for the GameLogicBench materials and compliance with the vendored upstream project licenses.
