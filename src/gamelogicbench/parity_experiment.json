@@ -1,14 +1,16 @@
 [
   {
     "adapter_name": "gamelogicbench",
-    "agent": null,
-    "model": null,
-    "date": null,
+    "agent": "codex@0.144.1",
+    "model": "gpt-5-mini",
+    "date": "2026-11-20",
     "adapted_benchmark_size": 72,
     "number_of_runs": 3,
-    "notes": "Proposed plan only. Agent, model, stratified sample (proposed 7 Atom, 9 Combo, 8 Repo) and run count require maintainer agreement. No runs, performance or costs are recorded.",
+    "notes": "Formal runs in progress; no formal performance or parity conclusion yet. Frozen subset: 8 atom / 8 combo / 8 repo, 472 cells, three runs per side. Independent four-task pilot: 25% per side, zero final runtime exceptions; excluded from formal results. Exact 2077 billing unknown. See validation/parity-reproduction.md.",
     "original_parity_repo": "https://github.com/NJU-LINK/GameLogicBench",
-    "adapter_pr": null,
+    "adapter_pr": [
+      "https://github.com/harbor-index/adapters/pull/19"
+    ],
     "dataset_pr": null,
     "parity_pr": null,
     "metrics": [
@@ -18,6 +20,7 @@
         "original": null,
         "harbor": null
       }
-    ]
+    ],
+    "parity_benchmark_size": 24
   }
 ]

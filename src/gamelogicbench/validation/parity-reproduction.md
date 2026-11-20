@@ -1,0 +1,76 @@
+# GPT-5 Mini parity reproduction
+
+Status: the independent four-task pilot is complete; the three formal 24-task runs are in progress. No formal parity conclusion is recorded yet. The contributor reports maintainer approval for GPT-5 Mini and supplied the 2077 key.
+
+## Frozen inputs and runtime
+
+- Harness: `NJU-LINK/GameLogicBench@10287322040bc72574f144cb40eccfd6ccb66936`.
+- Tasks: `NJU-LINK/GameLogicBench-Tasks@82f51ab34860c0ab3fe63a0ce9ae394ad38234a6`.
+- Adapter implementation: `600d5e0f8b6861bc5e92cff2429602205ac7c503`; subsequent reproduction documents do not change task generation or grading.
+- Harbor `0.23.0`, Codex `0.144.1`, Godot `4.4.stable.official.4c311cbee`, Linux ARM64 on both sides.
+- API: `https://app.ppapi.ai/v1`, Responses protocol, actual model ID `gpt-5-mini` (Harbor's agent argument is `openai/gpt-5-mini`). The earlier proposed date-suffixed ID is not used.
+- High reasoning effort, 400,000-token context window, original per-task CPU/memory settings and 3,600-second solve budget on both sides. Request retries: 4; stream retries: 8; stream idle timeout: 120,000 ms. No framework-level whole-trial retries.
+- [24 fixed task IDs](../parity_task_ids.txt): within each kind, take the first eight tasks in ascending SHA-256 order of `gamelogicbench-parity-v1:<task_id>`. Selection precedes model evaluation and is independent of scores. All 472 upstream scenario/seed cells per run are frozen privately and matched between sides.
+- Local Colima Linux backend, 6 vCPU / 16 GiB RAM; two model solves per side and two original judge workers. Daytona was not used.
+
+Use the pinned checkouts and base-image build from the adapter README, then build the [fixed Codex runtime](parity-runtime/README.md). On macOS, run the original harness on the Linux Docker host: its egress policy requires Linux `iptables`, root access and the host Docker daemon. Harbor can be scheduled from macOS against that same daemon. Set `DOCKER_HOST` explicitly when using a non-default Docker backend.
+
+## Harbor side
+
+From `src/gamelogicbench`, with `GLB_HARNESS` and `GLB_TASKS` pointing at the pinned clean checkouts:
+
+```bash
+uv run gamelogicbench --harness-dir "$GLB_HARNESS" --tasks-dir "$GLB_TASKS" \
+  --output-dir ../../datasets/gamelogicbench-parity --split parity \
+  --parity-task-file "$PWD/parity_task_ids.txt" --allow-host app.ppapi.ai \
+  --runtime-image gamelogicbench-parity:codex-0.144.1
+
+# Supply OPENAI_API_KEY privately; do not put it in shell history or commit it.
+unset CODEX_FORCE_AUTH_JSON CODEX_AUTH_JSON_PATH
+export OPENAI_BASE_URL=https://app.ppapi.ai/v1
+for run in 1 2 3; do
+  harbor run -c run_gamelogicbench_parity.yaml --job-name "run-$run" || break
+done
+```
+
+Use a new job directory for a new experiment; do not overwrite existing results. The [Codex config](parity-codex.toml) reads `OPENAI_API_KEY` and does not use a personal ChatGPT login. Agent egress is restricted to the model endpoint; verification remains offline.
+
+## Original side
+
+Install the pinned upstream harness dependencies on the Linux Docker host. Set `GLB_PARITY_TASK_IDS` to an absolute copy of the same 24-ID file, and supply `OPENAI_API_KEY` privately to the setup process. From the harness root, write its ignored private registry without printing the credential:
+
+```python
+import os
+from pathlib import Path
+import yaml
+
+path = Path("conf/models/default.yaml")
+assert not path.exists(), "Keep an existing private registry; add this entry manually instead"
+entry = {"api_type": "openai-responses", "id": "gpt-5-mini",
+         "base_url": "https://app.ppapi.ai/v1", "api_key": os.environ["OPENAI_API_KEY"],
+         "wire_api": "responses", "context_window": 400000,
+         "defaults": {"reasoning_effort": "high"}}
+with open(path, "x", opener=lambda name, flags: os.open(name, flags, 0o600)) as output:
+    yaml.safe_dump({"models": {"gpt-5-mini": {"scaffolds": {"codex": entry}}}}, output)
+```
+
+The pinned loader uses `yaml.safe_load`; it does **not** interpolate `${oc.env:...}` placeholders. Keep the registry private. Run with Linux-host privileges sufficient to install the upstream egress allowlist:
+
+```bash
+for run in 1 2 3; do
+  python -m geb.cli command=run \
+    "task=[$(paste -sd, "$GLB_PARITY_TASK_IDS")]" \
+    solution=gpt-5-mini scaffold=codex effort=high \
+    image=gamelogicbench-parity:codex-0.144.1 \
+    solve.concurrency=2 judge.concurrency=2 sample_num=1 \
+    "result_dir=$PWD/parity-original-run-$run" || break
+done
+```
+
+## Validation and reporting
+
+The independent pilot used `atom_move_navigation`, `atom_dodge_hold`, `combo_jump_reach_graph` and `repo_slayrobot_deck_ledger`. Both sides passed 1/4 whole tasks, with zero final runtime exceptions. Three actual model submissions were also cross-graded in the opposite harness: 66/66 cell verdicts agreed. Pilot outputs are excluded from the three formal runs.
+
+Each task scores 1 only if every frozen scenario/seed cell passes. Missing, duplicate or unusable judge cells are unresolved infrastructure results, never model zeros. A model solve timeout is retained and its remaining workspace is judged, following the original harness; it is not rerun to improve the score. Publish three raw task-pass rates per side and their mean ± sample SEM overall and per kind. Range overlap uses the minimum and maximum of the three run scores. Explicitly flag categories where both sides score zero.
+
+Both CLIs emit an unknown-model metadata warning; the context window is explicitly set on both sides. Formal logs also contain transient stream disconnections, idle timeouts and a `Service Unavailable` response handled by the pinned CLI retry policy. Report final failures separately from recovered transport errors. Exact 2077 billing is unavailable; token-based cost estimates are not an invoice. Detailed logs, credentials, generated games and hidden judge inputs remain private.

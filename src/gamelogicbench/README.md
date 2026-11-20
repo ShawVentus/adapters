@@ -60,24 +60,24 @@ Use `--limit N` to select a sorted prefix and `--overwrite` to regenerate tasks 
 
 ## Comparison with Original Benchmark (Parity)
 
-Model parity has not been run. The final task list, CLI versions, model and run count need maintainer agreement. Pass the same approved ID list and API endpoint to both sides. Oracle generation defaults to no network in both agent and verifier environments. For model runs, `--allow-host` uses the same allowlist during agent setup and execution, with the verifier still offline. Preinstall the approved, pinned agent CLI in the runtime image so setup does not need public internet.
+Three formal paired runs are in progress on a frozen 24-task subset (8 atom / 8 combo / 8 repo, 472 scenario-seed cells per run). Both sides use Codex 0.144.1, the verified 2077 model ID `gpt-5-mini`, high reasoning effort and the original task budgets. The independent four-task pilot scored 25% on each side with zero final runtime exceptions; cross-grading three model submissions matched 66/66 cell verdicts. Pilot results are excluded from formal scores.
 
 | Agent | Model | Metric | Number of Runs | Dataset Size | Original Performance | Harbor Performance |
 | --- | --- | --- | ---: | ---: | --- | --- |
-| Pending approval | Pending approval | Task pass rate | 3 proposed per side | 24 proposed | Pending | Pending |
+| codex@0.144.1 | gpt-5-mini | Task pass rate | 3 per side | 24/72 (33.3%) | In progress | In progress |
+
+See [the fixed task list](parity_task_ids.txt), [both-side reproduction commands and methodology](validation/parity-reproduction.md), [Harbor job config](run_gamelogicbench_parity.yaml), and [pinned Codex runtime recipe](validation/parity-runtime/README.md). The original harness runs on the Linux Docker host because its egress allowlist requires `iptables`; Harbor uses the same backend. The recorded experiment uses local Colima and does not require Daytona. Formal results will include per-run scores and mean ± sample SEM overall and per kind; no formal parity conclusion is claimed yet.
+
+After the linked runtime, private credentials and task-generation setup, run each side three times with distinct result directories. From the adapter directory on the Harbor host and the harness root on the Linux Docker host respectively:
 
 ```bash
-uv run gamelogicbench --harness-dir "$GLB_HARNESS" --tasks-dir "$GLB_TASKS" \
-  --output-dir ../../datasets/gamelogicbench-parity --split parity \
-  --parity-task-file "$GLB_PARITY_TASK_IDS" --allow-host "$GLB_MODEL_HOST"
-harbor run -p ../../datasets/gamelogicbench-parity -a claude-code -m "$GLB_MODEL"
+harbor run -c run_gamelogicbench_parity.yaml --job-name run-1
 
-cd "$GLB_HARNESS"
 python -m geb.cli command=run "task=[$(paste -sd, "$GLB_PARITY_TASK_IDS")]" \
-  solution="$GLB_MODEL_REGISTRY_ID" scaffold=cc
+  solution=gpt-5-mini scaffold=codex effort=high \
+  image=gamelogicbench-parity:codex-0.144.1 \
+  solve.concurrency=2 judge.concurrency=2 sample_num=1 result_dir=parity-original-run-1
 ```
-
-Here `GLB_PARITY_TASK_IDS` is an absolute path containing the approved upstream IDs, one per line. Use only the ID lines if the file contains comments. Record the exact pinned agent executable, upstream model registry entry, solve budgets, egress settings, runtime and seeds on both sides.
 
 ## Notes & Caveats
 
