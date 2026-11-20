@@ -11,9 +11,11 @@ Status: the independent four-task pilot is complete; the three formal 24-task ru
 - API: `https://app.ppapi.ai/v1`, Responses protocol, actual model ID `gpt-5-mini` (Harbor's agent argument is `openai/gpt-5-mini`). The earlier proposed date-suffixed ID is not used.
 - High reasoning effort, 400,000-token context window, original per-task CPU/memory settings and 3,600-second solve budget on both sides. Request retries: 4; stream retries: 8; stream idle timeout: 120,000 ms. No framework-level whole-trial retries.
 - [24 fixed task IDs](../parity_task_ids.txt): within each kind, take the first eight tasks in ascending SHA-256 order of `gamelogicbench-parity-v1:<task_id>`. Selection precedes model evaluation and is independent of scores. All 472 upstream scenario/seed cells per run are frozen privately and matched between sides.
-- Local Colima Linux backend, 6 vCPU / 16 GiB RAM; two model solves per side and two original judge workers. Daytona was not used.
+- Local Colima Linux backend, 6 vCPU / 16 GiB RAM; two model solves per side per round and two original judge workers per round. Daytona was not used. At `2026-11-20T09:52:10Z`, round 2 was started alongside round 1 after observing low CPU/memory use and API wait. At most two paired rounds overlap, for a total ceiling of eight model solves. Round 3 starts when either paired round completes. No active solve was interrupted, and the total remains 144 formal solves with unchanged inputs, model settings, budgets and scoring.
 
 Use the pinned checkouts and base-image build from the adapter README, then build the [fixed Codex runtime](parity-runtime/README.md). On macOS, run the original harness on the Linux Docker host: its egress policy requires Linux `iptables`, root access and the host Docker daemon. Harbor can be scheduled from macOS against that same daemon. Set `DOCKER_HOST` explicitly when using a non-default Docker backend.
+
+For the recorded overlap schedule, launch rounds 1 and 2 in separate terminals on both sides, then start round 3 after either paired round finishes. Each round has separate output directories. The loops below instead show sequential invocation for a smaller resource footprint; each round's settings are identical.
 
 ## Harbor side
 
