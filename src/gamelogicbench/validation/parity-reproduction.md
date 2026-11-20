@@ -25,11 +25,17 @@ Before Harbor model runs, apply the patch to a Harbor 0.23.0 environment and che
 python - <<'PY'
 from pathlib import Path
 import harbor
+import hashlib
+import json
 import subprocess
 
 site_packages = Path(harbor.__file__).resolve().parent.parent
 patch = Path("validation/harbor-codex-stdin.patch").resolve()
+record = json.loads(Path("validation/harbor-codex-stdin-provenance.json").read_text())
+driver = site_packages / "harbor/agents/installed/codex.py"
+assert hashlib.sha256(driver.read_bytes()).hexdigest() == record["baseline_sha256"]
 subprocess.run(["patch", "-p1", "-d", str(site_packages), "-i", str(patch)], check=True)
+assert hashlib.sha256(driver.read_bytes()).hexdigest() == record["patched_sha256"]
 PY
 python validation/check_codex_stdin.py
 ```
