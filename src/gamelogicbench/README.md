@@ -36,7 +36,7 @@ GameLogicBench evaluates gameplay logic in Godot 4.4 projects. An agent edits th
 
 ## Run Evaluation / Harness
 
-The registry entry is pending. [Historical validation evidence](validation/README.md) covers the earlier 72-task implementation. Run newly generated tasks locally with the same Docker daemon that built the base image.
+The registry entry is pending. [Historical validation evidence](validation/README.md) covers the earlier 72-task implementation. Newly generated tasks include the runtime build in their Dockerfiles and can run on a clean Docker backend.
 
 ```bash
 harbor trial start -p ../../datasets/gamelogicbench-poc/atom_active_frames -a oracle
@@ -109,7 +109,6 @@ git -C GameLogicBench checkout --detach 10287322040bc72574f144cb40eccfd6ccb66936
 git clone https://github.com/NJU-LINK/GameLogicBench-Tasks.git
 git -C GameLogicBench-Tasks checkout --detach 82f51ab34860c0ab3fe63a0ce9ae394ad38234a6
 
-docker build -t gamelogicbench-runtime:godot-4.4 runtime
 uv sync --locked
 ```
 
@@ -118,9 +117,9 @@ Set `GLB_HARNESS` and `GLB_TASKS` to the respective absolute paths. The runtime 
 ## Troubleshooting
 
 - If generation rejects a checkout, verify its head, root and tracked status.
-- If a task build cannot resolve the shared image, build it under the expected tag on the same daemon. A custom build driver may require a reachable registry or an explicit image reference.
+- If a task built with `--runtime-image` cannot resolve the image, regenerate without the override or use an image reachable from the Docker backend.
 - For a failed Oracle, compare the generated verifier log with the separately evaluated upstream `proper` solution. Start with `atom_move_navigation` to isolate headless operation.
-- Confirm the Linux Docker backend supports separate verification, no-network execution and the egress sidecar’s required kernel features for allowlists. A non-local backend requires a backend-accessible runtime image.
+- Confirm the Linux Docker backend supports separate verification, no-network execution and the egress sidecar’s required kernel features for allowlists.
 
 ## Citation
 

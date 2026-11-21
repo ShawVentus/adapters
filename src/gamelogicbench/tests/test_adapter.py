@@ -43,6 +43,9 @@ class PlatformTests(unittest.TestCase):
                 destination = root/'generated'/task_id
                 adapter._write_task(destination, task_id, evaluation, agent)
                 for role in ('environment', 'tests'):
+                    dockerfile = (destination/role/'Dockerfile').read_text()
+                    self.assertIn('COPY --from=engine', dockerfile)
+                    self.assertNotIn('__GLB_RUNTIME_IMAGE__', dockerfile)
                     compose = destination/role/'docker-compose.yaml'
                     self.assertEqual(compose.exists(), native)
                     if native:

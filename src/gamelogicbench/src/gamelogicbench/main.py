@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 import subprocess
 
-from .adapter import DEFAULT_RUNTIME_IMAGE, GameLogicBenchAdapter
+from .adapter import GameLogicBenchAdapter
 from .sources import SourceCheckouts
 
 
@@ -54,7 +54,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--task-ids", nargs="+", help="Select specific upstream task IDs")
     parser.add_argument("--split", choices=["full", "parity"], default="full")
     parser.add_argument("--parity-task-file", type=Path, help="Approved parity IDs, one per line")
-    parser.add_argument("--runtime-image", default=DEFAULT_RUNTIME_IMAGE)
+    parser.add_argument("--runtime-image", help="Use a prebuilt runtime image instead of embedding the build")
     parser.add_argument("--allow-host", action="append", default=[], help="Allow a model API hostname")
     parser.add_argument(
         "--reference", choices=["proper", "naive"], default="proper",

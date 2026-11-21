@@ -12,7 +12,7 @@ from .sources import HARNESS_REVISION, TASKS_REVISION, SourceCheckouts
 
 
 TEMPLATES = Path(__file__).with_name("task-template")
-DEFAULT_RUNTIME_IMAGE = "gamelogicbench-runtime:godot-4.4"
+RUNTIME_DOCKERFILE = Path(__file__).with_name("runtime") / "Dockerfile"
 IMAGE_REFERENCE = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9._:/@-]*")
 HOSTNAME = re.compile(r"[a-zA-Z0-9](?:[a-zA-Z0-9.-]*[a-zA-Z0-9])?")
 
@@ -28,12 +28,12 @@ class GameLogicBenchAdapter:
         output_dir: Path,
         *,
         task_ids: list[str],
-        runtime_image: str = DEFAULT_RUNTIME_IMAGE,
+        runtime_image: str | None = None,
         allowed_hosts: tuple[str, ...] = (),
         reference: str = "proper",
         overwrite: bool = False,
     ) -> None:
-        if not IMAGE_REFERENCE.fullmatch(runtime_image):
+        if runtime_image is not None and not IMAGE_REFERENCE.fullmatch(runtime_image):
             raise ValueError(f"Invalid runtime image reference: {runtime_image}")
         if any(not HOSTNAME.fullmatch(host) for host in allowed_hosts):
             raise ValueError("--allow-host expects a hostname or IPv4 address")
@@ -43,7 +43,10 @@ class GameLogicBenchAdapter:
             if self.output_dir.is_relative_to(checkout):
                 raise ValueError("Generate tasks outside the source checkouts")
         self.task_ids = task_ids
-        self.runtime_image = runtime_image
+        self.runtime_stage = (
+            f"FROM {runtime_image}" if runtime_image is not None
+            else RUNTIME_DOCKERFILE.read_text(encoding="utf-8").rstrip()
+        )
         self.allowed_hosts = allowed_hosts
         self.reference = reference
         self.overwrite = overwrite
@@ -109,10 +112,11 @@ class GameLogicBenchAdapter:
         for role in ["environment", "tests"]:
             path = destination / role / "Dockerfile"
             dockerfile = path.read_text(encoding="utf-8")
-            if "__GLB_RUNTIME_IMAGE__" not in dockerfile:
+            marker = "FROM __GLB_RUNTIME_IMAGE__"
+            if not dockerfile.startswith(marker + "\n"):
                 raise ValueError(f"Missing runtime image placeholder in {role}/Dockerfile")
             path.write_text(
-                dockerfile.replace("__GLB_RUNTIME_IMAGE__", self.runtime_image),
+                dockerfile.replace(marker, self.runtime_stage, 1),
                 encoding="utf-8",
             )
         # The pinned native GDExtension is shipped only as a Linux x86_64 binary.

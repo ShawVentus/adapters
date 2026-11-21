@@ -131,6 +131,18 @@ class VerifierTests(unittest.TestCase):
             with self.assertRaises(verifier.InvalidSubmission):
                 verifier.read_verdict(link, output.stat().st_uid, cell, 0, False)
 
+    def test_verifier_error_clears_stale_reward(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            reward = root / 'reward.txt'
+            reward.write_text('1\n')
+            with (
+                patch.object(verifier, 'LOGS', root),
+                patch.object(verifier, 'evaluate', side_effect=verifier.VerifierError('unusable judge')),
+            ):
+                self.assertEqual(verifier.main(), 2)
+            self.assertFalse(reward.exists())
+
 
 if __name__ == '__main__':
     unittest.main()
