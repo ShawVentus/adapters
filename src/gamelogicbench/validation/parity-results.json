@@ -1126,5 +1126,11 @@
       ]
     },
     "overall_ranges_overlap": true
+  },
+  "acceptance_status": {
+    "ready_for_review": false,
+    "scores": "historical mixed-driver cohort; provisional",
+    "grading_integrity": "negative result-forgery test failed in both evaluators",
+    "details": "acceptance.md"
   }
 }

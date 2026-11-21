@@ -2,6 +2,8 @@
 
 ## Overview
 
+**Draft — acceptance blockers remain.** A negative test reproduced verdict forgery in both evaluators; the recorded parity also mixes driver revisions. See [acceptance findings and required corrections](validation/acceptance.md).
+
 Build private Harbor task directories from pinned local GameLogicBench checkouts. The adapter source contains the generator and integration code. It does not distribute upstream games, judges or reference solutions.
 
 ## What is GameLogicBench?
@@ -60,7 +62,11 @@ Use `--limit N` to select a sorted prefix and `--overwrite` to regenerate tasks 
 
 ## Comparison with Original Benchmark (Parity)
 
-Three paired runs are complete on the frozen 24-task subset (8 atom / 8 combo / 8 repo, 472 cells per run). Results are mean ± sample SEM across the three whole-task pass rates. Overall three-run score ranges overlap. Pilot excluded; model solve timeouts are judged without model reruns. Recovered transport errors occurred. 4 unusable attempts were archived and replaced under the original session-completion policy; their usage remains included in cost estimates. The repaired Harbor task and round 3 use the documented stdin-prompt driver patch; earlier valid attempts are retained. A separate sensitivity check counts the oversized-tool-argument attempt as its original zero: Harbor overall 18.0556 ± 3.6747%; overall ranges overlap.
+The historical provisional cohort contains three paired runs on 24 tasks (8 atom / 8 combo / 8 repo, 472 cells per run). Scores are mean ± sample SEM; all per-kind and overall run-score ranges overlap. The Harbor cohort mixes driver revisions, so these observations are not final frozen-configuration parity confirmation.
+
+All seven whole-task disagreement pairs were cross-graded in the opposite evaluator: **14 submissions, 294/294 matching cell verdicts**. This supports code-output differences in the observed disagreements, while the negative integrity test still fails. See [acceptance findings](validation/acceptance.md) and [cross-grade evidence](validation/crossgrade-disagreements.json).
+
+The pilot is excluded. Model-budget timeouts are retained and judged; four unusable attempts are archived and replaced. Counting the oversized-tool-argument attempt's original zero leaves the reported aggregate unchanged. See the linked reproduction notes for the complete policy and driver history.
 
 | Agent | Model | Metric | Number of Runs | Dataset Size | Original Performance | Harbor Performance |
 | --- | --- | --- | ---: | ---: | --- | --- |
@@ -83,7 +89,7 @@ python -m geb.cli command=run "task=[$(paste -sd, "$GLB_PARITY_TASK_IDS")]" \
 
 - The upstream harness starts a container per seed. The adapter starts one separate verifier container per trial and isolates sequential seed executions inside it. Check the target backend's isolation and egress policy before using the adapter with models.
 - `repo_amsg_movement_engine` failed its reference checks in the original harness on ARM64 but passed on AMD64. Its vendored GDExtension has Linux x86_64 binaries only; the generated task pins both execution roles to AMD64. Use that same architecture for upstream comparisons.
-- The Docker verifier supervises each process and writes the task reward. Agent code never gets write access to the final reward file. Missing or unusable judge results leave an explicit infrastructure failure for rerun. Public registry submission remains pending.
+- The Docker verifier supervises each process and writes the task reward. The final reward file is protected, but a reproduced intermediate-verdict forgery defeats grading integrity; see the acceptance findings. Missing or unusable judge results leave an explicit infrastructure failure for rerun. Public registry submission remains pending.
 - Verifier logs include Godot diagnostics and a private `cells.jsonl` with every scenario/seed verdict. Keep these detailed logs private; publish only reviewed summaries and terminal screenshots.
 - Source checkouts must match the fixed SHAs below and have clean tracked files. Generation copies Git-tracked assets only.
 - Publication requires upstream permission for the GameLogicBench materials and compliance with the vendored upstream project licenses.

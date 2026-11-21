@@ -6,7 +6,7 @@
     "date": "2026-11-20",
     "adapted_benchmark_size": 72,
     "number_of_runs": 3,
-    "notes": "24-task stratified subset, 8 per kind; 472 frozen cells per run. Scores are percentages. Overall three-run score ranges overlap. Pilot excluded; model solve timeouts are judged without model reruns. Recovered transport errors occurred. 4 unusable attempts were archived and replaced under the original session-completion policy; their usage remains included in cost estimates. The repaired Harbor task and round 3 use the documented stdin-prompt driver patch; earlier valid attempts are retained. A separate sensitivity check counts the oversized-tool-argument attempt as its original zero: Harbor overall 18.0556 \u00b1 3.6747%; overall ranges overlap.",
+    "notes": "Provisional historical cohort: 24 tasks (8 per kind), 472 cells per side per round, three runs. Scores are percentages with sample SEM. Harbor mixes 47 argv and 25 stdin driver attempts, so range overlap is not final parity confirmation. Four unusable attempts are archived and replaced; model timeouts are retained; the archived-zero sensitivity result is unchanged. Cross-grading all seven disagreement pairs matches 294/294 cells. Both evaluators fail a private verdict-authenticity negative test. Uniform-configuration validation, redistribution permission, dataset/HF publication and registry verification remain unresolved. See validation/acceptance.md and validation/parity-reproduction.md.",
     "original_parity_repo": "https://github.com/NJU-LINK/GameLogicBench",
     "adapter_pr": [
       "https://github.com/harbor-index/adapters/pull/19"

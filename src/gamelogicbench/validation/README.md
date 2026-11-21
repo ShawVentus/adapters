@@ -1,8 +1,10 @@
 # Oracle validation for the WIP adapter
 
-Validation status: **PASS — 72/72 tasks at reward 1.0, 1,474/1,474 cells passed, zero exceptions, zero retries.**
+Historical Oracle baseline: **PASS — 72/72 tasks at reward 1.0, 1,474/1,474 cells passed, zero exceptions, zero retries.**
 
 The final `oracle-full` run started at 2026-11-18 02:16:47 and finished at 03:16:56 (America/Los_Angeles). Every included task completed exactly once; there are no exclusions, skipped cells or duplicate tasks.
+
+Current acceptance status: **NOT READY**. The negative integrity check failed in both evaluators, and model parity uses a mixed-driver cohort. See [acceptance findings](acceptance.md). Oracle success does not establish tamper resistance.
 
 ## Fixed inputs
 
