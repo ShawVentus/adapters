@@ -42,6 +42,8 @@ The [51-task reference validation](validation/release-51-reference.json) records
 51/51 full Harbor Oracle rewards (1,055/1,055 cells), 51/51 zero rewards for
 the unchanged workspace, and 148/148 original-to-Harbor verdict agreements
 for proper and naive reference solutions on three representative tasks.
+The generated registry candidate also passed all 51 tasks and 1,055 cells in
+Harbor 0.27.0, with zero exceptions or retries.
 
 ```bash
 harbor trial start -p ../../datasets/gamelogicbench-poc/atom_active_frames -a oracle
