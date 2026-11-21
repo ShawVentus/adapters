@@ -8,6 +8,16 @@ from gamelogicbench.adapter import GameLogicBenchAdapter
 
 
 class PlatformTests(unittest.TestCase):
+    def test_unsupported_task_is_rejected_before_creating_output(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = SimpleNamespace(harness=root/'harness', tasks=root/'tasks',
+                                     unsupported_reason=lambda task: 'live object mutation')
+            adapter = GameLogicBenchAdapter(source, root/'output', task_ids=['atom_live'])
+            with self.assertRaisesRegex(ValueError, 'not supported by isolated verification'):
+                adapter.run()
+            self.assertFalse((root/'output').exists())
+
     def test_native_extension_pins_both_roles_without_affecting_plain_tasks(self):
         evaluation = {
             'cells': [None], 'timeout': {'wall': 180},

@@ -49,6 +49,9 @@ class GameLogicBenchAdapter:
         self.overwrite = overwrite
 
     def run(self) -> tuple[int, int, int]:
+        for task_id in self.task_ids:
+            if reason := self.source.unsupported_reason(task_id):
+                raise ValueError(f"{task_id} is not supported by isolated verification: {reason}")
         self.output_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
         generated = skipped = cells = 0
         for task_id in self.task_ids:
@@ -144,6 +147,7 @@ class GameLogicBenchAdapter:
             task_id, f"solutions/{self.reference}", destination / "solution/reference"
         )
         private = destination / "tests/private"
+        self.source.copy_group(task_id, "game", private / "game")
         self.source.copy_group(task_id, "judge", private / "judge")
         shutil.copyfile(self.source.tasks / task_id / "task.yaml", private / "task.yaml")
         (private / "evaluation.json").write_text(

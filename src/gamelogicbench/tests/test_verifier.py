@@ -15,6 +15,72 @@ spec.loader.exec_module(verifier)
 
 
 class VerifierTests(unittest.TestCase):
+    def test_controller_project_does_not_receive_frozen_judge_files(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            workspace = root / 'workspace'
+            frozen = root / 'frozen'
+            workspace.mkdir()
+            frozen.mkdir()
+            (workspace / 'project.godot').write_text('controller project')
+            (frozen / 'project.godot').write_text('judge project')
+            (frozen / 'assertions.gd').touch()
+
+            worker = verifier.prepare_project(workspace, root / 'worker')
+            judge = verifier.prepare_project(workspace, root / 'judge', frozen_judge=frozen)
+
+            self.assertEqual((worker / 'project.godot').read_text(), 'controller project')
+            self.assertFalse((worker / 'assertions.gd').exists())
+            self.assertEqual((judge / 'project.godot').read_text(), 'judge project')
+            self.assertTrue((judge / 'assertions.gd').is_file())
+
+    def test_proxy_interface_does_not_allow_source_injection(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'interface.json'
+            uid = path.parent.stat().st_uid
+            path.write_text(json.dumps({'methods': [{'name': 'on_tick', 'arguments': 1}], 'signals': []}))
+            source = verifier.controller_proxy(path, uid)
+            self.assertIn('func on_tick(arg_0):', source)
+            self.assertIn('_glb_call("on_tick", [arg_0])', source)
+            for data in (
+                [{'name': 'x():\n\tOS.execute("sh", [])\nfunc y', 'arguments': 0}],
+                [{'name': 'x', 'arguments': True}],
+                [{'name': 'x', 'arguments': 17}],
+                [{'name': 'x', 'arguments': 0}] * 2,
+                {'name': 'x', 'arguments': 0},
+            ):
+                path.write_text(json.dumps({'methods': data, 'signals': []}))
+                with self.subTest(data=data), self.assertRaises(verifier.InvalidSubmission):
+                    verifier.controller_proxy(path, uid)
+
+    def test_proxy_signal_interface_preserves_typed_callbacks(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'interface.json'
+            uid = path.parent.stat().st_uid
+            interface = {'methods': [{'name': 'advance', 'arguments': 1}],
+                         'signals': [{'name': 'expired', 'types': [4]}]}
+            path.write_text(json.dumps(interface))
+            self.assertIn('signal expired(arg_0: String)', verifier.controller_proxy(path, uid))
+            for types in ([True], [24], [4] * 5):
+                interface['signals'][0]['types'] = types
+                path.write_text(json.dumps(interface))
+                with self.subTest(types=types), self.assertRaises(verifier.InvalidSubmission):
+                    verifier.controller_proxy(path, uid)
+
+    def test_proxy_interface_requires_bounded_owned_regular_json(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'interface.json'
+            path.write_text('x' * (64 * 1024 + 1))
+            uid = path.stat().st_uid
+            with self.assertRaises(verifier.InvalidSubmission):
+                verifier.controller_proxy(path, uid)
+            path.write_text('{}')
+            with self.assertRaises(verifier.InvalidSubmission):
+                verifier.controller_proxy(path, uid + 1)
+            path.write_text('not json')
+            with self.assertRaises(verifier.InvalidSubmission):
+                verifier.controller_proxy(path, uid)
+
     def test_full_coverage_and_private_cell_evidence(self):
         manifest = {
             'task_id': 'atom_test', 'mode': 'headless',

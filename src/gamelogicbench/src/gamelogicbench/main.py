@@ -65,7 +65,8 @@ def main(argv: list[str] | None = None) -> None:
         parser.error("--harness-dir and --tasks-dir require the local pinned upstream checkouts")
     try:
         source = SourceCheckouts(args.harness_dir, args.tasks_dir)
-        task_ids = _select_ids(source.task_ids, args)
+        available = [task for task in source.task_ids if source.unsupported_reason(task) is None]
+        task_ids = _select_ids(available, args)
         adapter = GameLogicBenchAdapter(
             source, args.output_dir,
             task_ids=task_ids,

@@ -17,6 +17,10 @@ PRESS_TOKEN = re.compile(r"^[a-z][a-z0-9_]*$")
 MEMORY = re.compile(r"^(\d+)([mg])$")
 WORKSPACE = "/workspace/game"
 DEFAULT_DELIVERABLE = "res://logic/controller.gd"
+LIVE_OBJECT_CONTROLLERS = {
+    "atom_root_motion_3d": "Controller mutates a live CharacterBody3D and its physics state.",
+    "repo_openrpg_battle_ai": "Controller mutates typed Battler/CombatAI object graphs.",
+}
 
 
 def _git(path: Path, *args: str) -> str:
@@ -147,6 +151,16 @@ class SourceCheckouts:
         if not tracked:
             raise ValueError(f"{task_id} lacks tracked content in {group}")
         copy_tracked_files(self.tasks / task_id / group, destination, tracked)
+
+    def unsupported_reason(self, task_id: str) -> str | None:
+        if task_id in LIVE_OBJECT_CONTROLLERS:
+            return LIVE_OBJECT_CONTROLLERS[task_id]
+        evaluation, _ = self.describe(task_id)
+        if evaluation["mode"] != "headless":
+            return "Rendered project submissions need a separate trusted rendering interface."
+        if evaluation["invert_overlay"]:
+            return "Project module submissions need an isolated game-object mutation interface."
+        return None
 
     def describe(self, task_id: str) -> tuple[dict, dict]:
         path = self.tasks / task_id / "task.yaml"

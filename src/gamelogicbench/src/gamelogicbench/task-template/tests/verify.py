@@ -5,9 +5,11 @@ from __future__ import annotations
 import errno
 import json
 import os
+import re
 import resource
 import shutil
 import signal
+import socket
 import stat
 import subprocess
 import sys
@@ -23,6 +25,7 @@ PRIVATE = Path("/tests/private")
 LOGS = Path("/logs/verifier")
 RUNTIME_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 FIRST_WORKER_UID = 42000
+FIRST_JUDGE_UID = 52000
 MAX_RESULT_BYTES = 256 * 1024
 UNUSABLE = {"infra_error", "unknown_scenario", "no_press_axis", "unknown_press_axis"}
 ABNORMAL_ENGINE_SIGNALS = (signal.SIGABRT, signal.SIGBUS, signal.SIGFPE, signal.SIGILL, signal.SIGSEGV)
@@ -74,14 +77,6 @@ def validate_workspace(workspace: Path, deliverables: list[Path]) -> None:
         raise InvalidSubmission("A required game deliverable is missing.")
 
 
-def copy_deliverable(source: Path, target: Path) -> None:
-    if source.is_dir():
-        shutil.copytree(source, target, dirs_exist_ok=True)
-    else:
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, target)
-
-
 def overlay(source: Path, destination: Path) -> None:
     for parent, directories, files in os.walk(source):
         relative = Path(parent).relative_to(source)
@@ -95,23 +90,15 @@ def overlay(source: Path, destination: Path) -> None:
 
 
 def prepare_project(
-    workspace: Path,
-    frozen_judge: Path,
+    source: Path,
     cell_root: Path,
-    deliverables: list[Path],
-    invert_overlay: bool,
+    *,
+    frozen_judge: Path | None = None,
 ) -> Path:
-    """Use the submitted game as the base and preserve specified Repo deliverables."""
     project = cell_root / "project"
-    shutil.copytree(workspace, project)
-    if invert_overlay:
-        snapshot = cell_root / "deliverables"
-        for relative in deliverables:
-            copy_deliverable(project / relative, snapshot / relative)
-    overlay(frozen_judge, project)
-    if invert_overlay:
-        overlay(snapshot, project)
-        shutil.rmtree(snapshot)
+    shutil.copytree(source, project)
+    if frozen_judge is not None:
+        overlay(frozen_judge, project)
     return project
 
 
@@ -130,24 +117,11 @@ def prepare_worker_tree(root: Path, uid: int) -> None:
             file.chmod(0o700 if executable else 0o600)
 
 
-def godot_commands(
-    project: Path, output: Path, cell: Cell, manifest: dict[str, Any]
-) -> list[list[str]]:
-    scene = ["res://judge.tscn", "--", "--scenario", cell.scenario, "--seed", str(cell.seed)]
+def judge_arguments(output: Path, cell: Cell, manifest: dict[str, Any]) -> list[str]:
+    arguments = ["--scenario", cell.scenario, "--seed", str(cell.seed)]
     if cell.press:
-        scene.extend(["--press", cell.press])
-    scene.extend(["--controller", manifest["deliverable_paths"][0], "--out", str(output)])
-    headless = ["godot", "--headless", "--path", str(project)]
-    if manifest["mode"] == "headless":
-        return [headless + scene]
-    window = manifest["window"]
-    return [
-        headless + ["--import"],
-        [
-            "xvfb-run", "-a", "-s", f"-screen 0 {window['width']}x{window['height']}x24",
-            "godot", "--path", str(project), "--rendering-driver", "opengl3", *scene,
-        ],
-    ]
+        arguments.extend(["--press", cell.press])
+    return arguments + ["--controller", manifest["deliverable_paths"][0], "--out", str(output)]
 
 
 def worker_processes(uid: int) -> list[int]:
@@ -183,29 +157,33 @@ def oom_kills() -> int:
     return next((int(line.split()[1]) for line in entries if line.startswith("oom_kill ")), 0)
 
 
-def run_worker(
+def start_worker(
     command: list[str],
     uid: int,
     cell_root: Path,
     env: dict[str, str],
-    timeout: float,
-    kill_after: float,
     pids_limit: int,
-) -> int:
-    if timeout <= 0:
-        raise subprocess.TimeoutExpired(command, timeout)
-
+) -> subprocess.Popen:
     def limit_processes() -> None:
         resource.setrlimit(resource.RLIMIT_NPROC, (pids_limit, pids_limit))
         resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 
     isolated_command = ["setpriv", "--no-new-privs", *command]
-    with subprocess.Popen(
+    return subprocess.Popen(
         isolated_command, cwd=cell_root, env=env, stdin=subprocess.DEVNULL,
         stdout=sys.stdout, stderr=sys.stderr,
         start_new_session=True, preexec_fn=limit_processes,
         user=uid, group=uid, extra_groups=(),
-    ) as process:
+    )
+
+
+def run_worker(
+    command: list[str], uid: int, cell_root: Path, env: dict[str, str],
+    timeout: float, kill_after: float, pids_limit: int,
+) -> int:
+    if timeout <= 0:
+        raise subprocess.TimeoutExpired(command, timeout)
+    with start_worker(command, uid, cell_root, env, pids_limit) as process:
         try:
             return process.wait(timeout)
         except subprocess.TimeoutExpired:
@@ -262,50 +240,182 @@ def read_verdict(file: Path, uid: int, cell: Cell, returncode: int, out_of_memor
     return Verdict("controller_invalid" if outcome == "build_error" else outcome, passed)
 
 
+def read_interface_json(metadata: Path, uid: int) -> Any:
+    try:
+        fd = os.open(metadata, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except OSError as error:
+        if error.errno in {errno.ENOENT, errno.ELOOP, errno.ENOTDIR}:
+            raise InvalidSubmission("The controller interface disappeared or has an invalid type.") from error
+        raise
+    with os.fdopen(fd, "rb") as file:
+        info = os.fstat(file.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != uid or info.st_nlink != 1:
+            raise InvalidSubmission("Invalid controller interface file.")
+        content = file.read(64 * 1024 + 1)
+    if len(content) > 64 * 1024:
+        raise InvalidSubmission("Controller interface is too large.")
+    try:
+        return json.loads(content)
+    except ValueError as error:
+        raise InvalidSubmission("Controller interface is not valid JSON.") from error
+
+
+def controller_proxy(metadata: Path, uid: int) -> str:
+    interface = read_interface_json(metadata, uid)
+    if not isinstance(interface, dict) or set(interface) != {"methods", "signals"}:
+        raise InvalidSubmission("Invalid controller interface.")
+    methods = interface["methods"]
+    if not isinstance(methods, list) or not methods or len(methods) > 128:
+        raise InvalidSubmission("Invalid controller method list.")
+    lines = ['extends "res://.harbor_rpc.gd"']
+    names = set()
+    signals = interface["signals"]
+    if not isinstance(signals, list) or len(signals) > 32:
+        raise InvalidSubmission("Invalid controller signals.")
+    signal_types = {0: "Variant", 1: "bool", 2: "int", 3: "float", 4: "String",
+                    5: "Vector2", 6: "Vector2i", 9: "Vector3", 10: "Vector3i"}
+    for entry in signals:
+        if not isinstance(entry, dict) or set(entry) != {"name", "types"}:
+            raise InvalidSubmission("Invalid controller signal declaration.")
+        name, types = entry["name"], entry["types"]
+        if (not isinstance(name, str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,63}", name)
+                or name in names or not isinstance(types, list) or len(types) > 4
+                or any(type(value) is not int or value not in signal_types for value in types)):
+            raise InvalidSubmission("Unsafe controller signal declaration.")
+        names.add(name)
+        arguments = ", ".join(f"arg_{i}: {signal_types[t]}" for i, t in enumerate(types))
+        lines.append(f"signal {name}({arguments})")
+    for method in methods:
+        if not isinstance(method, dict) or set(method) != {"name", "arguments"}:
+            raise InvalidSubmission("Invalid controller method declaration.")
+        name, count = method["name"], method["arguments"]
+        if (
+            not isinstance(name, str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,63}", name)
+            or name in names or type(count) is not int or not 0 <= count <= 16
+        ):
+            raise InvalidSubmission("Unsafe controller method declaration.")
+        names.add(name)
+        arguments = ", ".join(f"arg_{index}" for index in range(count))
+        lines.extend([f"func {name}({arguments}):", f'\treturn _glb_call("{name}", [{arguments}])'])
+    return "\n".join(lines) + "\n"
+
+
 def evaluate_cell(
     manifest: dict[str, Any], cell: Cell, uid: int, temporary_root: Path, deliverables: list[Path]
 ) -> Verdict:
-    if worker_processes(uid):
+    judge_uid = FIRST_JUDGE_UID + uid - FIRST_WORKER_UID
+    if worker_processes(uid) or worker_processes(judge_uid):
         raise VerifierError("Worker UID is already in use.")
+    if manifest["invert_overlay"] or manifest["mode"] != "headless":
+        raise VerifierError("This task needs an isolated scene/module bridge; unsafe fallback is disabled.")
+    if manifest["task_id"] in {"atom_root_motion_3d", "repo_openrpg_battle_ai"}:
+        raise VerifierError("This task requires a live game-object mutation bridge; unsafe fallback is disabled.")
+    if not (PRIVATE / "game/project.godot").is_file():
+        raise VerifierError("Regenerate tasks with the frozen trusted game tree.")
     with tempfile.TemporaryDirectory(prefix="cell-", dir=temporary_root) as temporary:
         cell_root = Path(temporary)
-        project = prepare_project(
-            WORKSPACE, PRIVATE / "judge", cell_root, deliverables, manifest["invert_overlay"]
-        )
-        home = cell_root / "home"
-        scratch = cell_root / "tmp"
-        home.mkdir()
-        scratch.mkdir()
-        output = cell_root / "result.json"
-        prepare_worker_tree(cell_root, uid)
-        env = {
-            "PATH": RUNTIME_PATH,
-            "HOME": str(home),
-            "TMPDIR": str(scratch),
-            "XDG_DATA_HOME": str(home / ".local/share"),
-            "XDG_CONFIG_HOME": str(home / ".config"),
-            "XDG_CACHE_HOME": str(home / ".cache"),
-            "LANG": "C.UTF-8",
-            "GODOT_SILENCE_ROOT_WARNING": "1",
-        }
-        if manifest["mode"] == "rendered":
-            env.update(LIBGL_ALWAYS_SOFTWARE="1", LP_NUM_THREADS=str(manifest["render_threads"]))
-        commands = godot_commands(project, output, cell, manifest)
+        cell_root.chmod(0o711)
+        worker_root, judge_root = cell_root / "controller", cell_root / "judge"
+        worker_root.mkdir()
+        judge_root.mkdir()
+        worker_project = prepare_project(WORKSPACE, worker_root)
+        judge_project = prepare_project(PRIVATE / "game", judge_root, frozen_judge=PRIVATE / "judge")
+        judge_source = judge_project / "judge.gd"
+        source = judge_source.read_text()
+        argument_reader = "OS.get_cmdline_user_args()"
+        if source.count(argument_reader) != 1:
+            raise VerifierError("The frozen judge must have exactly one argument reader.")
+        # A different UID can still read process arguments through /proc.
+        judge_source.write_text(source.replace(
+            argument_reader,
+            'PackedStringArray(JSON.parse_string(OS.get_environment("GLB_JUDGE_ARGS")))',
+        ))
+        # Godot 4.4 exposes no mesh getter; observe setters without changing their effects.
+        for script in judge_project.rglob("*.gd"):
+            source = script.read_text()
+            captured = source.replace(
+                "PhysicsServer2D.body_create()", 'preload("res://.harbor_rpc.gd")._glb_capture_body()'
+            ).replace(
+                "NavigationServer2D.region_set_navigation_polygon(",
+                'preload("res://.harbor_rpc.gd").capture_polygon(',
+            ).replace(
+                "NavigationServer3D.region_set_navigation_mesh(",
+                'preload("res://.harbor_rpc.gd").capture_mesh(',
+            )
+            if captured != source:
+                script.write_text(captured)
+        templates = Path(__file__).parent
+        shutil.copyfile(templates / "controller_worker.gd", worker_project / ".harbor_worker.gd")
+        shutil.copyfile(templates / "controller_proxy.gd", judge_project / ".harbor_rpc.gd")
+        metadata = worker_root / "interface.json"
+        with socket.socket() as reservation:
+            reservation.bind(("127.0.0.1", 0))
+            port = reservation.getsockname()[1]
+
+        environments = []
+        for root, worker_uid in ((worker_root, uid), (judge_root, judge_uid)):
+            home, scratch = root / "home", root / "tmp"
+            home.mkdir()
+            scratch.mkdir()
+            prepare_worker_tree(root, worker_uid)
+            environments.append({
+                "PATH": RUNTIME_PATH, "HOME": str(home), "TMPDIR": str(scratch),
+                "XDG_DATA_HOME": str(home / ".local/share"),
+                "XDG_CONFIG_HOME": str(home / ".config"),
+                "XDG_CACHE_HOME": str(home / ".cache"),
+                "LANG": "C.UTF-8", "GODOT_SILENCE_ROOT_WARNING": "1",
+            })
+        environments[1]["GLB_CONTROLLER_PORT"] = str(port)
+        environments[1]["GLB_CONTROLLER_ERROR"] = str(judge_root / "rpc-error.json")
+        if manifest["task_id"] == "combo_dualgrid_terrain":
+            environments[1]["GLB_ALLOW_TILE_ACTIONS"] = "1"
+        worker_command = ["godot", "--headless", "--path", str(worker_project), "--script",
+                          "res://.harbor_worker.gd", "--", manifest["deliverable_paths"][0],
+                          str(port), str(metadata)]
         timeouts = manifest["timeout"]
         start = time.monotonic()
         initial_oom_kills = oom_kills()
+        output = judge_root / "result.json"
+        environments[1]["GLB_JUDGE_ARGS"] = json.dumps(judge_arguments(output, cell, manifest))
+        controller = None
         try:
-            for command in commands:
-                returncode = run_worker(
-                    command, uid, cell_root, env,
-                    timeouts["container"] - (time.monotonic() - start),
-                    timeouts["kill_after"], manifest["resources"]["pids_limit"],
-                )
+            controller = start_worker(worker_command, uid, worker_root, environments[0],
+                                      manifest["resources"]["pids_limit"])
+            while not metadata.exists():
+                if controller.poll() is not None:
+                    raise InvalidSubmission("The controller could not start.")
+                if time.monotonic() - start > timeouts["container"]:
+                    raise subprocess.TimeoutExpired(worker_command, timeouts["container"])
+                time.sleep(0.01)
+            proxy = controller_proxy(metadata, uid)
+            path = judge_project / deliverables[0]
+            path.write_text(proxy)
+            os.chown(path, judge_uid, judge_uid)
+            path.chmod(0o400)
+            returncode = run_worker(
+                ["godot", "--headless", "--path", str(judge_project), "res://judge.tscn"],
+                judge_uid, judge_root, environments[1],
+                timeouts["container"] - (time.monotonic() - start),
+                timeouts["kill_after"], manifest["resources"]["pids_limit"],
+            )
         except subprocess.TimeoutExpired:
             return Verdict("killed_timeout", False)
+        except InvalidSubmission:
+            return Verdict("controller_invalid", False)
         finally:
             cleanup_worker(uid)
-        return read_verdict(output, uid, cell, returncode, oom_kills() > initial_oom_kills)
+            cleanup_worker(judge_uid)
+            if controller is not None:
+                controller.wait(timeout=5)
+        error_file = judge_root / "rpc-error.json"
+        if error_file.exists():
+            error = read_interface_json(error_file, judge_uid)
+            if not isinstance(error, dict) or set(error) != {"code", "message"}:
+                raise VerifierError("Invalid trusted RPC error record.")
+            if error["code"] == 2:
+                raise VerifierError(str(error["message"]))
+            return Verdict("controller_invalid", False)
+        return read_verdict(output, judge_uid, cell, returncode, oom_kills() > initial_oom_kills)
 
 
 def evaluate() -> int:

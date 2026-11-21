@@ -2,20 +2,20 @@
 
 ## Overview
 
-**Draft — acceptance blockers remain.** A negative test reproduced verdict forgery in both evaluators; the recorded parity also mixes driver revisions. See [acceptance findings and required corrections](validation/acceptance.md).
+**Draft.** The candidate release covers 51 headless controller tasks and 1,055 scenario/seed cells. Final validation and publication permission are pending. See [the historical acceptance findings](validation/acceptance.md).
 
 Build private Harbor task directories from pinned local GameLogicBench checkouts. The adapter source contains the generator and integration code. It does not distribute upstream games, judges or reference solutions.
 
 ## What is GameLogicBench?
 
-GameLogicBench evaluates gameplay logic in Godot 4.4 projects. An agent edits the project, then a deterministic judge runs the submission across public and hidden scenarios. The supported Git snapshot contains 72 tasks and 1,474 scenario-seed cells. The paper reports 1,451 cells. The reason for the count difference has not been confirmed.
+GameLogicBench evaluates gameplay logic in Godot 4.4 projects. An agent edits the project, then a deterministic judge runs the submission across public and hidden scenarios. The pinned upstream snapshot contains 72 tasks and 1,474 scenario/seed cells. The paper reports 1,451 cells. The reason for the count difference has not been confirmed.
 
 ## Adapter Features
 
-- One stable Harbor task per original task ID. Full and parity generation use the same conversion path.
-- The agent receives the upstream brief and playable project. Only the verifier loads the frozen judge and scenario manifest.
+- One stable Harbor task per supported original task ID. Full and parity generation use the same conversion path.
+- The agent receives the upstream brief and playable project. The verifier runs the frozen judge and the submitted controller under separate users and processes.
 - Oracle installs the upstream `proper` overlay into the editable project and goes through the normal artifact and verifier path. Use `--reference naive` in a separate local directory for negative calibration.
-- Headless and software-rendered validation share the pinned Godot 4.4 runtime. The manifest preserves Press arguments, per-seed resource settings and declared delivery paths.
+- Headless validation uses the pinned Godot 4.4 runtime. The manifest preserves Press arguments, per-seed resource settings and declared delivery paths.
 - The runtime selects the official Godot AMD64 or ARM64 archive for the Docker build platform and verifies its pinned checksum. Tasks with the upstream native GDExtension pin the game and verifier services to AMD64; other tasks and Harbor's sidecar can run natively on ARM64.
 
 ## Generated Task Structure
@@ -31,15 +31,15 @@ GameLogicBench evaluates gameplay logic in Godot 4.4 projects. An agent edits th
   tests/Dockerfile
   tests/test.sh
   tests/verify.py
-  tests/private/{task.yaml,evaluation.json,judge/}
+  tests/private/{task.yaml,evaluation.json,game/,judge/}
 ```
 
 ## Run Evaluation / Harness
 
-The registry entry is pending. The final local Oracle passed all 72 tasks and 1,474 cells with zero exceptions or retries; representative original/Harbor calibration matched 114/114 cell verdicts. See [validation evidence and reproduction](validation/README.md). Run generated tasks locally with the same Docker daemon that built the base image.
+The registry entry is pending. [Historical validation evidence](validation/README.md) covers the earlier 72-task implementation. Run newly generated tasks locally with the same Docker daemon that built the base image.
 
 ```bash
-harbor trial start -p ../../datasets/gamelogicbench-poc/atom_light_occlusion -a oracle
+harbor trial start -p ../../datasets/gamelogicbench-poc/atom_active_frames -a oracle
 harbor run -c run_gamelogicbench.yaml
 ```
 
@@ -52,7 +52,7 @@ Run from the adapter directory. Set the paths to the pinned upstream repositorie
 ```bash
 uv run gamelogicbench --harness-dir "$GLB_HARNESS" --tasks-dir "$GLB_TASKS" \
   --output-dir ../../datasets/gamelogicbench-poc \
-  --task-ids atom_light_occlusion combo_reverse_dock repo_amsg_movement_engine
+  --task-ids atom_active_frames combo_reverse_dock repo_watch_rotation
 
 uv run gamelogicbench --harness-dir "$GLB_HARNESS" --tasks-dir "$GLB_TASKS" \
   --output-dir ../../datasets/gamelogicbench
@@ -64,7 +64,7 @@ Use `--limit N` to select a sorted prefix and `--overwrite` to regenerate tasks 
 
 The historical provisional cohort contains three paired runs on 24 tasks (8 atom / 8 combo / 8 repo, 472 cells per run). Scores are mean ± sample SEM; all per-kind and overall run-score ranges overlap. The Harbor cohort mixes driver revisions, so these observations are not final frozen-configuration parity confirmation.
 
-All seven whole-task disagreement pairs were cross-graded in the opposite evaluator: **14 submissions, 294/294 matching cell verdicts**. This supports code-output differences in the observed disagreements, while the negative integrity test still fails. See [acceptance findings](validation/acceptance.md) and [cross-grade evidence](validation/crossgrade-disagreements.json).
+All seven historical whole-task disagreement pairs were cross-graded in the opposite evaluator: **14 submissions, 294/294 matching cell verdicts**. These replays describe the historical cohort. See [acceptance findings](validation/acceptance.md) and [cross-grade evidence](validation/crossgrade-disagreements.json).
 
 The pilot is excluded. Model-budget timeouts are retained and judged; four unusable attempts are archived and replaced. Counting the oversized-tool-argument attempt's original zero leaves the reported aggregate unchanged. See the linked reproduction notes for the complete policy and driver history.
 
@@ -74,7 +74,10 @@ The pilot is excluded. Model-budget timeouts are retained and judged; four unusa
 
 See [per-run and per-task summaries](validation/parity-results.json), [the fixed task list](parity_task_ids.txt), and [both-side reproduction and methodology](validation/parity-reproduction.md). Local Colima Linux was used; Daytona was not used.
 
-After the linked runtime, private credentials and task-generation setup, run each side three times with distinct result directories. From the adapter directory on the Harbor host and the harness root on the Linux Docker host respectively:
+To replay the historical cohort, use the archived 72-task adapter and runtime
+described in the reproduction guide. Run both sides with a fresh result directory
+for each round. The candidate release requires a new subset drawn from its
+supported tasks.
 
 ```bash
 harbor run -c run_gamelogicbench_parity.yaml --job-name run-1
@@ -88,8 +91,8 @@ python -m geb.cli command=run "task=[$(paste -sd, "$GLB_PARITY_TASK_IDS")]" \
 ## Notes & Caveats
 
 - The upstream harness starts a container per seed. The adapter starts one separate verifier container per trial and isolates sequential seed executions inside it. Check the target backend's isolation and egress policy before using the adapter with models.
-- `repo_amsg_movement_engine` failed its reference checks in the original harness on ARM64 but passed on AMD64. Its vendored GDExtension has Linux x86_64 binaries only; the generated task pins both execution roles to AMD64. Use that same architecture for upstream comparisons.
-- The Docker verifier supervises each process and writes the task reward. The final reward file is protected, but a reproduced intermediate-verdict forgery defeats grading integrity; see the acceptance findings. Missing or unusable judge results leave an explicit infrastructure failure for rerun. Public registry submission remains pending.
+- The candidate excludes 18 project-module tasks, one rendered task, and two tasks requiring live game-object mutation. See [the task-level exclusions](excluded_tasks.json).
+- The verifier supervisor writes the task reward using the trusted judge's results. Missing or unusable judge results produce an explicit infrastructure failure.
 - Verifier logs include Godot diagnostics and a private `cells.jsonl` with every scenario/seed verdict. Keep these detailed logs private; publish only reviewed summaries and terminal screenshots.
 - Source checkouts must match the fixed SHAs below and have clean tracked files. Generation copies Git-tracked assets only.
 - Publication requires upstream permission for the GameLogicBench materials and compliance with the vendored upstream project licenses.
@@ -108,13 +111,6 @@ git -C GameLogicBench-Tasks checkout --detach 82f51ab34860c0ab3fe63a0ce9ae394ad3
 
 docker build -t gamelogicbench-runtime:godot-4.4 runtime
 uv sync --locked
-```
-
-On an ARM64 Docker backend, build both variants so the upstream x86_64 GDExtension task can use its original ABI (requires a multi-platform image store and AMD64 emulation). Do not set global `DOCKER_DEFAULT_PLATFORM`, which would also override Harbor's native network sidecar:
-
-```bash
-docker buildx build --platform linux/amd64,linux/arm64 --load \
-  -t gamelogicbench-runtime:godot-4.4 runtime
 ```
 
 Set `GLB_HARNESS` and `GLB_TASKS` to the respective absolute paths. The runtime Dockerfile pins the base image and checks the exact Godot version and archive checksum. Use `--runtime-image` to target an equivalent prebuilt image accessible from a different backend.
