@@ -38,6 +38,11 @@ GameLogicBench evaluates gameplay logic in Godot 4.4 projects. An agent edits th
 
 The registry entry is pending. [Historical validation evidence](validation/README.md) covers the earlier 72-task implementation. Newly generated tasks include the runtime build in their Dockerfiles and can run on a clean Docker backend.
 
+The [51-task reference validation](validation/release-51-reference.json) records
+51/51 full Harbor Oracle rewards (1,055/1,055 cells), 51/51 zero rewards for
+the unchanged workspace, and 148/148 original-to-Harbor verdict agreements
+for proper and naive reference solutions on three representative tasks.
+
 ```bash
 harbor trial start -p ../../datasets/gamelogicbench-poc/atom_active_frames -a oracle
 harbor run -c run_gamelogicbench.yaml
