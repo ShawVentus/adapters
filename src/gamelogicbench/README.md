@@ -69,6 +69,24 @@ Use `--limit N` to select a sorted prefix and `--overwrite` to regenerate tasks 
 
 ## Comparison with Original Benchmark (Parity)
 
+The 51-task release uses a fixed subset of 20 tasks, selected within each task
+category by ranking SHA-256 hashes of `gamelogicbench-parity-release-51:<task_id>`.
+Both sides use Codex 0.144.1 with `gpt-5-mini`. The release results are pending.
+Generate the subset and run the Harbor side from the adapter directory.
+
+```bash
+uv run gamelogicbench --harness-dir "$GLB_HARNESS" --tasks-dir "$GLB_TASKS" \
+  --output-dir ../../datasets/gamelogicbench-parity --split parity \
+  --allow-host app.ppapi.ai --runtime-image gamelogicbench-parity:codex-0.144.1
+
+harbor run -c run_gamelogicbench_parity.yaml --job-name release-51-round-1
+```
+
+The [bundled task list](src/gamelogicbench/parity_task_ids.txt) records the
+release subset. Use the pinned runtime and supply `OPENAI_API_KEY` privately.
+
+### Historical 72-task comparison
+
 The historical provisional cohort contains three paired runs on 24 tasks (8 atom / 8 combo / 8 repo, 472 cells per run). Scores are mean ± sample SEM; all per-kind and overall run-score ranges overlap. The Harbor cohort mixes driver revisions, so these observations are not final frozen-configuration parity confirmation.
 
 All seven historical whole-task disagreement pairs were cross-graded in the opposite evaluator: **14 submissions, 294/294 matching cell verdicts**. These replays describe the historical cohort. See [acceptance findings](validation/acceptance.md) and [cross-grade evidence](validation/crossgrade-disagreements.json).
@@ -79,21 +97,7 @@ The pilot is excluded. Model-budget timeouts are retained and judged; four unusa
 | --- | --- | --- | ---: | ---: | --- | --- |
 | codex@0.144.1 | gpt-5-mini | Task pass rate (%) | 3 per side | 24/72 (33.3%) | 13.8889 ± 2.7778 | 18.0556 ± 3.6747 |
 
-See [per-run and per-task summaries](validation/parity-results.json), [the fixed task list](parity_task_ids.txt), and [both-side reproduction and methodology](validation/parity-reproduction.md). Local Colima Linux was used; Daytona was not used.
-
-To replay the historical cohort, use the archived 72-task adapter and runtime
-described in the reproduction guide. Run both sides with a fresh result directory
-for each round. The candidate release requires a new subset drawn from its
-supported tasks.
-
-```bash
-harbor run -c run_gamelogicbench_parity.yaml --job-name run-1
-
-python -m geb.cli command=run "task=[$(paste -sd, "$GLB_PARITY_TASK_IDS")]" \
-  solution=gpt-5-mini scaffold=codex effort=high \
-  image=gamelogicbench-parity:codex-0.144.1 \
-  solve.concurrency=2 judge.concurrency=2 sample_num=1 result_dir=parity-original-run-1
-```
+See [per-run and per-task summaries](validation/parity-results.json), [the historical task list](validation/parity_task_ids.historical.txt), and [historical reproduction instructions](validation/parity-reproduction.md). The historical experiment ran in Colima Linux.
 
 ## Notes & Caveats
 

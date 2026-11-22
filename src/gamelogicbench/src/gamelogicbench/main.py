@@ -10,11 +10,10 @@ from .sources import SourceCheckouts
 
 def _select_ids(available: list[str], args: argparse.Namespace) -> list[str]:
     if args.split == "parity":
-        if args.parity_task_file is None:
-            raise ValueError("--split parity requires the approved --parity-task-file")
+        task_file = args.parity_task_file or Path(__file__).with_name("parity_task_ids.txt")
         selected = [
             line
-            for raw_line in args.parity_task_file.read_text(encoding="utf-8").splitlines()
+            for raw_line in task_file.read_text(encoding="utf-8").splitlines()
             if (line := raw_line.partition("#")[0].strip())
         ]
         if not selected:
@@ -53,7 +52,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--overwrite", action="store_true", help="Replace previously generated tasks")
     parser.add_argument("--task-ids", nargs="+", help="Select specific upstream task IDs")
     parser.add_argument("--split", choices=["full", "parity"], default="full")
-    parser.add_argument("--parity-task-file", type=Path, help="Approved parity IDs, one per line")
+    parser.add_argument("--parity-task-file", type=Path, help="Override the bundled parity IDs with a file")
     parser.add_argument("--runtime-image", help="Use a prebuilt runtime image instead of embedding the build")
     parser.add_argument("--allow-host", action="append", default=[], help="Allow a model API hostname")
     parser.add_argument(

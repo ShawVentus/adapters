@@ -10,7 +10,7 @@ Status: historical provisional cohort; **not accepted frozen-configuration parit
 - Harbor `0.23.0`, Codex `0.144.1`, Godot `4.4.stable.official.4c311cbee`, Linux ARM64 on both sides. The repaired Harbor attempt and round 3 use the documented stdin-prompt driver patch below; earlier valid attempts retain the unpatched driver.
 - API: `https://app.ppapi.ai/v1`, Responses protocol, actual model ID `gpt-5-mini` (Harbor's agent argument is `openai/gpt-5-mini`). The earlier proposed date-suffixed ID is not used.
 - High reasoning effort, 400,000-token context window, original per-task CPU/memory settings and 3,600-second solve budget on both sides. Request retries: 4; stream retries: 8; stream idle timeout: 120,000 ms. Automatic framework-level whole-trial retries are disabled; documented infrastructure-invalid attempts are archived and replaced separately, including their usage in cost estimates.
-- [24 fixed task IDs](../parity_task_ids.txt): within each kind, take the first eight tasks in ascending SHA-256 order of `gamelogicbench-parity-v1:<task_id>`. Selection precedes model evaluation and is independent of scores. All 472 upstream scenario/seed cells per run are frozen privately and matched between sides.
+- [24 fixed task IDs](parity_task_ids.historical.txt): within each kind, take the first eight tasks in ascending SHA-256 order of `gamelogicbench-parity-v1:<task_id>`. Selection precedes model evaluation and is independent of scores. All 472 upstream scenario/seed cells per run are frozen privately and matched between sides.
 - Local Colima Linux backend, 6 vCPU / 16 GiB RAM; two model solves per side per round and two original judge workers per round. Daytona was not used. At `2026-11-20T09:52:10Z`, round 2 was started alongside round 1 after observing low CPU/memory use and API wait. At most two paired rounds overlap, for a total ceiling of eight model solves. Round 3 starts when either paired round completes. No active solve was interrupted, and the target remains 144 scored task runs with unchanged inputs, model settings, budgets and scoring; excluded infrastructure attempts are additional.
 
 Use the pinned checkouts and base-image build from the adapter README, then build the [fixed Codex runtime](parity-runtime/README.md). On macOS, run the original harness on the Linux Docker host: its egress policy requires Linux `iptables`, root access and the host Docker daemon. Harbor can be scheduled from macOS against that same daemon. Set `DOCKER_HOST` explicitly when using a non-default Docker backend.
@@ -46,19 +46,19 @@ The [patch provenance](harbor-codex-stdin-provenance.json) records the unmodifie
 
 ## Harbor side
 
-From `src/gamelogicbench`, with `GLB_HARNESS` and `GLB_TASKS` pointing at the pinned clean checkouts:
+Use the archived 72-task adapter with `GLB_HARNESS` and `GLB_TASKS` pointing at the pinned clean checkouts. Set `GLB_PARITY_TASK_IDS` to the absolute path to the historical list. Use the historical YAML below with a separate dataset and job directory.
 
 ```bash
 uv run gamelogicbench --harness-dir "$GLB_HARNESS" --tasks-dir "$GLB_TASKS" \
   --output-dir ../../datasets/gamelogicbench-parity --split parity \
-  --parity-task-file "$PWD/parity_task_ids.txt" --allow-host app.ppapi.ai \
+  --parity-task-file "$GLB_PARITY_TASK_IDS" --allow-host app.ppapi.ai \
   --runtime-image gamelogicbench-parity:codex-0.144.1
 
 # Supply OPENAI_API_KEY privately; do not put it in shell history or commit it.
 unset CODEX_FORCE_AUTH_JSON CODEX_AUTH_JSON_PATH
 export OPENAI_BASE_URL=https://app.ppapi.ai/v1
 for run in 1 2 3; do
-  harbor run -c run_gamelogicbench_parity.yaml --job-name "run-$run" || break
+  harbor run -c run_gamelogicbench_parity.historical.yaml --job-name "run-$run" || break
 done
 ```
 
