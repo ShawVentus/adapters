@@ -43,7 +43,7 @@ GameLogicBench is sourced from NJU-LINK. The upstream harness and the original b
 
 ## Run Evaluation / Harness
 
-The registry entry is pending. The [current Oracle report](validation/release-72-oracle.json) records each executed task's digest and verified result. The publication packages add a task README with upstream licenses and notices. A smoke test against a publication digest passed, and regeneration reproduced all 72 publication digests. Generated tasks include the runtime build in their Dockerfiles and can run on a clean Docker backend.
+The registry entry is pending. The [publication-package Oracle report](validation/release-72-github-oracle.json) records 72/72 full rewards and 1,474/1,474 passing cases. Each executed task digest matches the manifest submitted in [dataset PR #302](https://github.com/harbor-framework/harbor-datasets/pull/302/commits/b4fa685c0618e3fb34cd155730208a3f0ffd295e). Generated task Dockerfiles include the runtime build and can run on a clean Docker backend.
 
 The [51-task reference validation](validation/release-51-reference.json) records
 51/51 full Harbor Oracle rewards (1,055/1,055 cells), 51/51 zero rewards for
