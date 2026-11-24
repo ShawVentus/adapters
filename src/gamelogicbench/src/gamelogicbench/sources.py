@@ -10,16 +10,14 @@ import subprocess
 import yaml
 
 
-HARNESS_REVISION = "10287322040bc72574f144cb40eccfd6ccb66936"
-TASKS_REVISION = "82f51ab34860c0ab3fe63a0ce9ae394ad38234a6"
+HARNESS_REVISION = "979cd919689c8bba021ef56808887bc58e49f3db"
+TASKS_REVISION = "fcc0b01fcc2fd2d95998478152222e6ab916fcdf"
 TASK_NAME = re.compile(r"^(atom|combo|repo)_[a-z0-9_]+$")
 PRESS_TOKEN = re.compile(r"^[a-z][a-z0-9_]*$")
 MEMORY = re.compile(r"^(\d+)([mg])$")
 WORKSPACE = "/workspace/game"
 DEFAULT_DELIVERABLE = "res://logic/controller.gd"
 LIVE_OBJECT_CONTROLLERS = {
-    "atom_root_motion_3d": "Controller mutates a live CharacterBody3D and its physics state.",
-    "repo_openrpg_battle_ai": "Controller mutates typed Battler/CombatAI object graphs.",
 }
 
 
@@ -156,9 +154,17 @@ class SourceCheckouts:
         if task_id in LIVE_OBJECT_CONTROLLERS:
             return LIVE_OBJECT_CONTROLLERS[task_id]
         evaluation, _ = self.describe(task_id)
-        if evaluation["mode"] != "headless":
+        if evaluation["mode"] != "headless" and task_id != "atom_light_occlusion":
             return "Rendered project submissions need a separate trusted rendering interface."
-        if evaluation["invert_overlay"]:
+        if evaluation["invert_overlay"] and task_id not in {
+            "repo_abyssal_enemy_engine", "repo_amsg_movement_engine", "repo_dothop_move_engine",
+            "repo_euwar_conquest_engine", "repo_factory_grid_lifeline", "repo_ftl_weapon_charge",
+            "repo_openrpg_battle_ai", "repo_openrpg_status_engine",
+            "repo_rts_engagement_chain", "repo_rts_harvest_engine", "repo_slayrobot_action_stack", "repo_slayrobot_deck_ledger",
+            "repo_slayrobot_interceptor_chain", "repo_turbofat_piece_phase", "repo_valley_day_engine",
+            "repo_wwii_battle_doctrine", "repo_youtd2_attack_cycle", "repo_youtd2_buff_aura_engine",
+            "repo_youtd2_projectile_engine",
+        }:
             return "Project module submissions need an isolated game-object mutation interface."
         return None
 

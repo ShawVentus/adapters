@@ -103,6 +103,23 @@ class GameLogicBenchAdapter:
                 return
         raise ValueError(f"Refusing to overwrite a directory without matching task metadata: {destination}")
 
+    def _write_license_files(self, destination: Path) -> None:
+        licenses = {
+            "LICENSE": self.source.tasks / "LICENSE",
+            "LICENSE-CC-BY-4.0": self.source.tasks / "LICENSE-CC-BY-4.0",
+            "NOTICE.md": self.source.tasks / "NOTICE.md",
+            "LICENSE-HARNESS": self.source.harness / "LICENSE",
+        }
+        # Harbor includes the task README in registry packages.
+        notices = [
+            "# GameLogicBench licensing and attribution\n\n"
+            "Source: NJU-LINK. [Paper](https://arxiv.org/abs/2609.21562)"
+        ]
+        for filename, source in licenses.items():
+            shutil.copyfile(source, destination / filename)
+            notices.append(f"## {filename}\n\n{source.read_text(encoding='utf-8').rstrip()}")
+        (destination / "README.md").write_text("\n\n".join(notices) + "\n", encoding="utf-8")
+
     def _write_task(self, destination: Path, task_id: str, evaluation: dict, agent: dict) -> None:
         shutil.copytree(
             TEMPLATES, destination,
@@ -133,6 +150,10 @@ class GameLogicBenchAdapter:
                 kind=task_id.split("_", 1)[0],
                 harness_revision=HARNESS_REVISION,
                 tasks_revision=TASKS_REVISION,
+                license_notice=(
+                    "contains_non_commercial_game_resources = true"
+                    if task_id == "repo_turbofat_piece_phase" else ""
+                ),
                 solve_timeout=agent["timeout_sec"],
                 solve_cpus=agent["cpus"],
                 solve_memory_mb=agent["memory_mb"],
@@ -146,6 +167,7 @@ class GameLogicBenchAdapter:
         )
         instruction = self.source.instruction(task_id, evaluation["deliverable_paths"])
         (destination / "instruction.md").write_text(instruction, encoding="utf-8")
+        self._write_license_files(destination)
         self.source.copy_group(task_id, "game", destination / "environment/game")
         self.source.copy_group(
             task_id, f"solutions/{self.reference}", destination / "solution/reference"
@@ -157,5 +179,49 @@ class GameLogicBenchAdapter:
         (private / "evaluation.json").write_text(
             json.dumps(evaluation, indent=2) + "\n", encoding="utf-8"
         )
+        bridges = {
+            "repo_dothop_move_engine": ("dothop.gd",),
+            "repo_abyssal_enemy_engine": ("abyssal_enemy.py",),
+            "repo_factory_grid_lifeline": (
+                "factory_grid.py", "factory_grid_worker.gd.inc", "factory_grid_judge.gd.inc",
+            ),
+            "repo_ftl_weapon_charge": ("ftl_weapons.py",),
+            "repo_euwar_conquest_engine": (
+                "euwar_prepare.py", "euwar_protocol.gd", "euwar_proxy.gd", "euwar_worker.gd",
+            ),
+            "repo_amsg_movement_engine": ("amsg_movement.py",),
+            "repo_openrpg_battle_ai": (
+                "openrpg_battle.py", "openrpg_battle_worker.gd.inc",
+                "openrpg_battle_observe.gd.inc", "openrpg_battle_judge.gd.inc",
+            ),
+            "repo_openrpg_status_engine": ("openrpg_status.py",),
+            "repo_slayrobot_action_stack": ("slayrobot_combat.py",),
+            "repo_slayrobot_deck_ledger": ("slayrobot_deck.py", "slayrobot_combat.py"),
+            "repo_slayrobot_interceptor_chain": ("slayrobot_combat.py",),
+            "repo_turbofat_piece_phase": ("turbofat_piece.py",),
+            "repo_valley_day_engine": ("valley_day.py",),
+            "repo_wwii_battle_doctrine": ("wwii_doctrine.py",),
+            "atom_light_occlusion": ("light_capture.py", "light_snapshot.gd.inc", "light_worker.gd"),
+            "repo_rts_engagement_chain": (
+                "rts_engagement.py", "rts_engagement_worker.gd.inc", "rts_engagement_judge.gd.inc",
+            ),
+            "repo_youtd2_attack_cycle": (
+                "youtd2_attacks.py", "youtd2_attacks_worker.gd.inc", "youtd2_attacks_judge.gd.inc",
+            ),
+            "repo_youtd2_buff_aura_engine": (
+                "youtd2_auras.py", "youtd2_auras_worker.gd.inc", "youtd2_auras_judge.gd.inc",
+            ),
+            "repo_youtd2_projectile_engine": (
+                "youtd2_projectiles.py", "youtd2_projectiles_worker.gd.inc", "youtd2_projectiles_judge.gd.inc",
+            ),
+            "repo_rts_harvest_engine": (
+                "rts_harvest.py", "rts_harvest_worker.gd.inc", "rts_harvest_judge.gd.inc",
+            ),
+        }.get(task_id, ())
+        if bridges:
+            for name in bridges:
+                shutil.copyfile(TEMPLATES.parent / "task-bridges" / name, destination / "tests" / name)
+            with (destination / "tests/Dockerfile").open("a", encoding="utf-8") as dockerfile:
+                dockerfile.write(f"COPY {' '.join(bridges)} /tests/\n")
         for script in ["solution/solve.sh", "tests/test.sh"]:
             (destination / script).chmod(0o755)

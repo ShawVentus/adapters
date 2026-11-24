@@ -2,7 +2,7 @@
 
 ## Overview
 
-**Draft.** The candidate release covers 51 headless controller tasks and 1,055 scenario/seed cells. Final validation and publication permission are pending. See [the historical acceptance findings](validation/acceptance.md).
+**Draft.** The adapter covers 72 tasks and 1,474 scenario/seed cells. Harbor Oracle passed all 72 tasks and all 1,474 cells with zero exceptions. The dataset and parity evidence PRs are pending. See [the current Oracle report](validation/release-72-oracle.json).
 
 Build private Harbor task directories from pinned local GameLogicBench checkouts. The adapter source contains the generator and integration code. It does not distribute upstream games, judges or reference solutions.
 
@@ -24,6 +24,7 @@ GameLogicBench evaluates gameplay logic in Godot 4.4 projects. An agent edits th
 <output>/<original_task_id>/
   task.toml
   instruction.md
+  LICENSE, LICENSE-CC-BY-4.0, LICENSE-HARNESS, NOTICE.md
   environment/Dockerfile
   environment/game/
   solution/solve.sh
@@ -34,9 +35,15 @@ GameLogicBench evaluates gameplay logic in Godot 4.4 projects. An agent edits th
   tests/private/{task.yaml,evaluation.json,game/,judge/}
 ```
 
+## Licensing and attribution
+
+GameLogicBench is sourced from NJU-LINK. The upstream harness and the original benchmark code are MIT. Task text, task specifications, and documentation are CC BY 4.0. The pinned task repository's notice identifies third-party material and the license files retained with it. [Task repository notice](https://github.com/NJU-LINK/GameLogicBench-Tasks/blob/fcc0b01fcc2fd2d95998478152222e6ab916fcdf/NOTICE.md)
+
+**Non-commercial game resources.** The `repo_turbofat_piece_phase` task includes CC BY-NC 4.0 game resources. Its upstream audio was replaced by silent placeholders. The YouTD2 tasks use placeholder art and sound and preserve the upstream license for the remaining original text files.
+
 ## Run Evaluation / Harness
 
-The registry entry is pending. [Historical validation evidence](validation/README.md) covers the earlier 72-task implementation. Newly generated tasks include the runtime build in their Dockerfiles and can run on a clean Docker backend.
+The registry entry is pending. The [current Oracle report](validation/release-72-oracle.json) records each executed task's digest and verified result. The publication packages add a task README with upstream licenses and notices. A smoke test against a publication digest passed, and regeneration reproduced all 72 publication digests. Generated tasks include the runtime build in their Dockerfiles and can run on a clean Docker backend.
 
 The [51-task reference validation](validation/release-51-reference.json) records
 51/51 full Harbor Oracle rewards (1,055/1,055 cells), 51/51 zero rewards for
@@ -65,25 +72,37 @@ uv run gamelogicbench --harness-dir "$GLB_HARNESS" --tasks-dir "$GLB_TASKS" \
   --output-dir ../../datasets/gamelogicbench
 ```
 
-Use `--limit N` to select a sorted prefix and `--overwrite` to regenerate tasks in place. To avoid mixing subsets, use a clean output directory for each independent run. Generated folders are kept private. Do not attach them to a PR or publish them to an image registry before permission is confirmed.
+Use `--limit N` to select a sorted prefix and `--overwrite` to regenerate tasks in place. To avoid mixing subsets, use a clean output directory for each independent run. Generated folders include the benchmark materials and the upstream notices. Preserve those notices and the non-commercial label when staging the dataset.
 
 ## Comparison with Original Benchmark (Parity)
 
-The 51-task release uses a fixed subset of 20 tasks, selected within each task
-category by ranking SHA-256 hashes of `gamelogicbench-parity-release-51:<task_id>`.
-Both sides use Codex 0.144.1 with `gpt-5-mini`. The release results are pending.
-Generate the subset and run the Harbor side from the adapter directory.
+The full release compares 24 of 72 tasks across three paired rounds. The earlier
+20 tasks were drawn from the 51-task release by ranking SHA-256 hashes of
+`gamelogicbench-parity-release-51:<task_id>` within each task category. We reuse
+those rounds after rescoring 60 saved Harbor submissions with the expansion
+verifier. All 1,314 case verdicts match. The four additions cover rendered lighting,
+live character physics, a single-module replacement, and a multi-file replacement.
+Each addition ran on both sides three times through the reviewer API.
+
+Both sides used Codex 0.144.1 with GPT-5 mini, high reasoning effort and a
+3,600-second active solve budget. The overall pass-rate ranges meet at 8.33%.
+The scores below are means with sample standard errors.
+
+| Agent | Model | Metric | Number of Runs | Dataset Size | Original Performance | Harbor Performance |
+| --- | --- | --- | ---: | ---: | --- | --- |
+| codex@0.144.1 | gpt-5-mini | Task pass rate (%) | 3 per side | 24/72 (33.3%) | 11.1111 ± 1.3889 | 6.9444 ± 1.3889 |
+
+Generate the [fixed 24-task subset](src/gamelogicbench/parity_task_ids.txt)
+from the pinned checkouts. Use the agreed reviewer gateway and keep its API key
+private. The reproduction command starts one Harbor round.
 
 ```bash
 uv run gamelogicbench --harness-dir "$GLB_HARNESS" --tasks-dir "$GLB_TASKS" \
   --output-dir ../../datasets/gamelogicbench-parity --split parity \
   --allow-host app.ppapi.ai --runtime-image gamelogicbench-parity:codex-0.144.1
 
-harbor run -c run_gamelogicbench_parity.yaml --job-name release-51-round-1
+harbor run -c run_gamelogicbench_parity.yaml --job-name gamelogicbench-parity-round-1
 ```
-
-The [bundled task list](src/gamelogicbench/parity_task_ids.txt) records the
-release subset. Use the pinned runtime and supply `OPENAI_API_KEY` privately.
 
 ### Historical 72-task comparison
 
@@ -102,11 +121,11 @@ See [per-run and per-task summaries](validation/parity-results.json), [the histo
 ## Notes & Caveats
 
 - The upstream harness starts a container per seed. The adapter starts one separate verifier container per trial and isolates sequential seed executions inside it. Check the target backend's isolation and egress policy before using the adapter with models.
-- The candidate excludes 18 project-module tasks, one rendered task, and two tasks requiring live game-object mutation. See [the task-level exclusions](excluded_tasks.json).
+- The final candidate includes the 21 tasks excluded from the first release. The [historical exclusion list](excluded_tasks.json) describes the first 51-task candidate.
 - The verifier supervisor writes the task reward using the trusted judge's results. Missing or unusable judge results produce an explicit infrastructure failure.
 - Verifier logs include Godot diagnostics and a private `cells.jsonl` with every scenario/seed verdict. Keep these detailed logs private; publish only reviewed summaries and terminal screenshots.
 - Source checkouts must match the fixed SHAs below and have clean tracked files. Generation copies Git-tracked assets only.
-- Publication requires upstream permission for the GameLogicBench materials and compliance with the vendored upstream project licenses.
+- NJU-LINK approved public Harbor hosting at the pinned revisions. Preserve the notices and licenses listed above in every published task package.
 - Confirm the task registry namespace and contributor contact through the v2 review workflow.
 
 ## Installation / Prerequisites
@@ -115,10 +134,11 @@ Use Python 3.11+, uv, Git, and a Linux Docker backend with the pinned Harbor rel
 
 ```bash
 git clone https://github.com/NJU-LINK/GameLogicBench.git
-git -C GameLogicBench fetch origin 10287322040bc72574f144cb40eccfd6ccb66936
-git -C GameLogicBench checkout --detach 10287322040bc72574f144cb40eccfd6ccb66936
+git -C GameLogicBench fetch origin 979cd919689c8bba021ef56808887bc58e49f3db
+git -C GameLogicBench checkout --detach 979cd919689c8bba021ef56808887bc58e49f3db
 git clone https://github.com/NJU-LINK/GameLogicBench-Tasks.git
-git -C GameLogicBench-Tasks checkout --detach 82f51ab34860c0ab3fe63a0ce9ae394ad38234a6
+git -C GameLogicBench-Tasks fetch origin fcc0b01fcc2fd2d95998478152222e6ab916fcdf
+git -C GameLogicBench-Tasks checkout --detach fcc0b01fcc2fd2d95998478152222e6ab916fcdf
 
 uv sync --locked
 ```

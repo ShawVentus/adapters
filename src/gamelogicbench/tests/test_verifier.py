@@ -81,6 +81,50 @@ class VerifierTests(unittest.TestCase):
             with self.assertRaises(verifier.InvalidSubmission):
                 verifier.controller_proxy(path, uid)
 
+    def test_game_observation_requires_a_bounded_owned_file(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            trace = root / 'trace.jsonl'
+            trace.write_bytes(b'{}\n')
+            uid = trace.stat().st_uid
+            self.assertEqual(verifier.game_observation(trace, uid), b'{}\n')
+            with self.assertRaises(ValueError):
+                verifier.game_observation(trace, uid + 1)
+            link = root / 'redirect.jsonl'
+            link.symlink_to(trace)
+            with self.assertRaises(OSError):
+                verifier.game_observation(link, uid)
+            trace.write_bytes(b'x' * (2 * 1024 * 1024 + 1))
+            with self.assertRaises(ValueError):
+                verifier.game_observation(trace, uid)
+
+    def test_factory_observation_requires_all_ticks_and_checks_provider_removal(self):
+        bridge = path.parents[2] / 'task-bridges/factory_grid.py'
+        factory_spec = importlib.util.spec_from_file_location('factory_grid', bridge)
+        factory = importlib.util.module_from_spec(factory_spec)
+        factory_spec.loader.exec_module(factory)
+        world = {
+            'budget': 1, 'providers': ['source'], 'cut': 'source', 'surgery': 1,
+            'receivers': [], 'turrets': [], 'heat_receivers': [],
+        }
+        first = {
+            'tick': 0, 'supply': 0, 'money': 0, 'stocks': {'source': 2},
+            'intake': {}, 'tick_intake': {}, 'fires': {}, 'delivered': {},
+            'tick_delivered': {}, 'delivery_events': {}, 'first_delivery': {},
+            'crusher': 0, 'foreign': '',
+        }
+        second = dict(first, tick=1, stocks={})
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary) / 'trace.jsonl'
+            factory.normalize_trace(f'{json.dumps(first)}\n{json.dumps(second)}'.encode(), destination, world)
+            self.assertEqual([json.loads(line) for line in destination.read_text().splitlines()], [first, second])
+            for rows in ([first], [first, first], [first, dict(second, stocks=first['stocks'])],
+                         [first, dict(second, passed=True)]):
+                destination.unlink(missing_ok=True)
+                with self.subTest(rows=rows), self.assertRaises(ValueError):
+                    data = '\n'.join(json.dumps(row) for row in rows).encode()
+                    factory.normalize_trace(data, destination, world)
+
     def test_full_coverage_and_private_cell_evidence(self):
         manifest = {
             'task_id': 'atom_test', 'mode': 'headless',

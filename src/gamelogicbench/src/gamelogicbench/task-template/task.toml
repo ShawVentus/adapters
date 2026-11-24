@@ -17,6 +17,7 @@ upstream_task_id = "$task_id"
 upstream_kind = "$kind"
 upstream_harness_revision = "$harness_revision"
 upstream_tasks_revision = "$tasks_revision"
+$license_notice
 
 [environment]
 os = "linux"

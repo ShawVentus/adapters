@@ -12,6 +12,11 @@ var _glb_navigation := {}
 var _glb_bodies := {}
 var _glb_shapes := []
 var _glb_calls := []
+var _glb_puzzles := {}
+var _glb_dothop: Script
+var _glb_motion_body: CharacterBody3D
+var _glb_motion_player: AnimationPlayer
+var _glb_motion_dt: float
 
 func _initialize() -> void:
 	var args := OS.get_cmdline_user_args()
@@ -23,6 +28,11 @@ func _initialize() -> void:
 		quit(1)
 		return
 	_glb_script = script
+	if OS.get_environment("GLB_DOTHOP") == "1":
+		_glb_dothop = load("res://.harbor_dothop.gd")
+		if _glb_dothop == null:
+			quit(1)
+			return
 	if _glb_server.listen(int(args[1]), "127.0.0.1") != OK:
 		quit(1)
 		return
@@ -171,7 +181,37 @@ func _glb_sync_node(snapshot: Node) -> Node:
 			node.stop()
 	return node
 
+func _glb_restore_motion_world(world: Dictionary) -> void:
+	var scene := bytes_to_var_with_objects(world["scene"]["data"]) as PackedScene
+	var snapshot := scene.instantiate()
+	var level := _glb_sync_node(snapshot)
+	snapshot.free()
+	root.add_child(level)
+	_glb_motion_body = _glb_nodes[world["body"]]
+	_glb_motion_player = _glb_nodes[world["player"]]
+	_glb_motion_dt = world["dt"]
+	_glb_motion_body.global_position = world["start"]
+	_glb_motion_body.velocity = Vector3.ZERO
+	await physics_frame
+	for frame in world["settle_frames"]:
+		if _glb_motion_body.is_on_floor():
+			break
+		_glb_motion_body.velocity.y -= float(world["gravity"]) * _glb_motion_dt
+		_glb_motion_body.move_and_slide()
+		await physics_frame
+	_glb_motion_body.velocity = Vector3.ZERO
+
 func _glb_answer(request: Dictionary) -> void:
+	if request.has("motion_world"):
+		await _glb_restore_motion_world(request["motion_world"])
+	elif request.has("motion_clip"):
+		await physics_frame
+	if request.has("motion_clip"):
+		var clip: String = request["motion_clip"]
+		if _glb_motion_player.current_animation != clip:
+			_glb_motion_player.play(clip)
+		if request["method"] == "tick":
+			_glb_motion_player.advance(_glb_motion_dt)
 	_glb_scene_nodes.clear()
 	for observation in request["scenes"]:
 		# Object deserialization occurs only in the untrusted worker, never in the judge.
@@ -214,6 +254,9 @@ func _glb_answer(request: Dictionary) -> void:
 				PhysicsServer2D.shape_set_data(shape, shape_info["data"])
 				PhysicsServer2D.body_add_shape(body, shape, shape_info["transform"], shape_info["disabled"])
 	var arguments = _glb_unpack(request["args"])
+	var puzzle_call: bool = _glb_dothop != null and request["method"] in ["move", "check_win"]
+	if puzzle_call:
+		arguments[0] = _glb_dothop.unpack(arguments[0], _glb_puzzles)
 	if not _glb_scene_nodes.is_empty() or not request["physics"].is_empty():
 		await physics_frame
 	if not _glb_instances.has(request["instance"]):
@@ -235,7 +278,14 @@ func _glb_answer(request: Dictionary) -> void:
 			cells.append([coordinate, layer.get_cell_source_id(coordinate),
 				layer.get_cell_atlas_coords(coordinate), layer.get_cell_alternative_tile(coordinate)])
 		tiles.append({"id": id, "cells": cells})
-	var reply := var_to_bytes({"id": request["id"], "result": result, "tiles": tiles})
+	var data := {"id": request["id"], "result": result, "tiles": tiles}
+	if puzzle_call:
+		data["puzzle"] = _glb_dothop.snapshot(arguments[0])
+	if request.has("motion_clip"):
+		data["motion_pose"] = [
+			_glb_motion_body.global_transform, _glb_motion_body.velocity, _glb_motion_body.is_on_floor(),
+		]
+	var reply := var_to_bytes(data)
 	if reply.size() > MAX_PACKET:
 		quit(1)
 		return

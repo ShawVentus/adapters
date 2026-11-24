@@ -8,6 +8,10 @@ static var _glb_navigation_meshes := {}
 static var _glb_physics_bodies := []
 var _glb_observed_nodes := {}
 var _glb_observed_bodies := {}
+var _glb_motion_body: CharacterBody3D
+var _glb_motion_player: AnimationPlayer
+var _glb_motion_world := {}
+var _glb_motion_on_floor := false
 
 func _init() -> void:
 	_glb_proxies[get_instance_id()] = weakref(self)
@@ -69,6 +73,17 @@ func _glb_scene_snapshot(value: Node) -> Dictionary:
 		return {}
 	clone.free()
 	return {"id": value.get_instance_id(), "data": var_to_bytes_with_objects(scene)}
+
+func _glb_bind_motion_world(world: Node3D, body: CharacterBody3D, player: AnimationPlayer,
+		start: Vector3, gravity: float, dt: float, settle_frames: int) -> void:
+	_glb_motion_body = body
+	_glb_motion_player = player
+	_glb_motion_on_floor = body.is_on_floor()
+	_glb_motion_world = {
+		"scene": _glb_scene_snapshot(world), "body": body.get_instance_id(),
+		"player": player.get_instance_id(), "start": start, "gravity": gravity,
+		"dt": dt, "settle_frames": settle_frames,
+	}
 
 func _glb_physics_snapshot(body: RID) -> Dictionary:
 	var bodies := []
@@ -151,6 +166,15 @@ func _glb_observation(value, depth: int = 0, hint: String = ""):
 	return value
 
 func _glb_call(method: String, arguments: Array):
+	var puzzle = null
+	var bridge = null
+	if OS.get_environment("GLB_DOTHOP") == "1" and method in ["move", "check_win"]:
+		puzzle = arguments[0]
+		bridge = load("res://.harbor_dothop.gd")
+		arguments = [bridge.observation(puzzle)] + arguments.slice(1)
+	var motion_call := _glb_motion_body != null and method in ["setup", "tick"]
+	if motion_call and method == "tick":
+		arguments[0]["is_on_floor"] = _glb_motion_on_floor
 	var observation = _glb_observation(arguments)
 	if _glb_peer.get_status() == StreamPeerTCP.STATUS_NONE:
 		if _glb_peer.connect_to_host("127.0.0.1", int(OS.get_environment("GLB_CONTROLLER_PORT"))) != OK:
@@ -170,12 +194,18 @@ func _glb_call(method: String, arguments: Array):
 		physics.append(_glb_physics_snapshot(body))
 	for node_id in _glb_observed_nodes:
 		var node = _glb_observed_nodes[node_id].get_ref()
-		if node != null:
+		if node != null and node != _glb_motion_body:
 			scenes.append(_glb_scene_snapshot(node))
 			if node is TileMapLayer and OS.get_environment("GLB_ALLOW_TILE_ACTIONS") == "1":
 				tiles.append(node_id)
-	var request := var_to_bytes({"id": serial, "instance": get_instance_id(),
-		"method": method, "args": observation, "scenes": scenes, "tiles": tiles, "physics": physics})
+	var envelope := {"id": serial, "instance": get_instance_id(),
+		"method": method, "args": observation, "scenes": scenes, "tiles": tiles, "physics": physics}
+	if motion_call:
+		envelope["motion_clip"] = _glb_motion_player.current_animation
+		if not _glb_motion_world.is_empty():
+			envelope["motion_world"] = _glb_motion_world
+			_glb_motion_world = {}
+	var request := var_to_bytes(envelope)
 	if request.size() > MAX_PACKET:
 		return _glb_abort("observation exceeds packet limit", 2)
 	_glb_peer.put_u32(request.size())
@@ -217,10 +247,24 @@ func _glb_call(method: String, arguments: Array):
 		var ack := var_to_bytes({"event_done": serial})
 		_glb_peer.put_u32(ack.size())
 		_glb_peer.put_data(ack)
-	if not reply is Dictionary or reply.size() != 3 or reply.get("id") != serial or not reply.has("result") or not reply.get("tiles") is Array:
+	var reply_size := 4 if bridge != null else 3
+	if motion_call:
+		reply_size += 1
+	if not reply is Dictionary or reply.size() != reply_size or reply.get("id") != serial or not reply.has("result") or not reply.get("tiles") is Array:
 		return _glb_abort("invalid action envelope")
 	if not _glb_values_only(reply):
 		return _glb_abort("action contains an engine reference")
+	if bridge != null and not bridge.apply(puzzle, reply.get("puzzle")):
+		return _glb_abort("invalid puzzle state")
+	if motion_call:
+		var pose = reply.get("motion_pose")
+		if not pose is Array or pose.size() != 3 or not pose[0] is Transform3D:
+			return _glb_abort("invalid root-motion transform")
+		if not pose[1] is Vector3 or not pose[2] is bool or not pose[0].is_finite() or not pose[1].is_finite():
+			return _glb_abort("invalid root-motion state")
+		_glb_motion_body.global_transform = pose[0]
+		_glb_motion_body.velocity = pose[1]
+		_glb_motion_on_floor = pose[2]
 	if reply["tiles"].size() > tiles.size():
 		return _glb_abort("unexpected tile action")
 	for action in reply["tiles"]:

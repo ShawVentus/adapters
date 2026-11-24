@@ -31,6 +31,12 @@ class PlatformTests(unittest.TestCase):
                 harness=root/'harness', tasks=root/'tasks', files={},
                 copy_group=Mock(), instruction=Mock(return_value='Original prompt'),
             )
+            source.harness.mkdir()
+            (source.harness/'LICENSE').write_text('Harness MIT')
+            source.tasks.mkdir()
+            for filename in ('LICENSE', 'LICENSE-CC-BY-4.0', 'NOTICE.md'):
+                (source.tasks/filename).write_text(filename)
+
             def copy_group(task_id, group, target):
                 target.mkdir(parents=True, exist_ok=True)
             source.copy_group.side_effect = copy_group
@@ -42,6 +48,10 @@ class PlatformTests(unittest.TestCase):
                 adapter = GameLogicBenchAdapter(source, root/'output', task_ids=[task_id])
                 destination = root/'generated'/task_id
                 adapter._write_task(destination, task_id, evaluation, agent)
+                self.assertEqual((destination/'LICENSE-HARNESS').read_text(), 'Harness MIT')
+                self.assertIn('Harness MIT', (destination/'README.md').read_text())
+                for filename in ('LICENSE', 'LICENSE-CC-BY-4.0', 'NOTICE.md'):
+                    self.assertEqual((destination/filename).read_text(), filename)
                 for role in ('environment', 'tests'):
                     dockerfile = (destination/role/'Dockerfile').read_text()
                     self.assertIn('COPY --from=engine', dockerfile)
