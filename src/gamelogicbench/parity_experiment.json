@@ -11,7 +11,9 @@
     "adapter_pr": [
       "https://github.com/harbor-index/adapters/pull/19"
     ],
-    "dataset_pr": null,
+    "dataset_pr": [
+      "https://github.com/harbor-framework/harbor-datasets/pull/302"
+    ],
     "parity_pr": null,
     "metrics": [
       {
